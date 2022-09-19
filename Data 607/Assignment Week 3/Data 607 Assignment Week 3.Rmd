@@ -1,0 +1,105 @@
+---
+title: "Data 607 Assignment Week 3"
+author: "Christian Uriostegui"
+date: "2022-09-18"
+output: html_document
+---
+
+```{r load data}
+data <- 'https://raw.githubusercontent.com/curiostegui/CUNY-SPS/main/Data%20607/Assignment%20Week%203/majors-list.csv'
+majors <- read.csv(file = data, header = TRUE, sep = ",")
+```
+
+```{r package}
+library(stringr)
+```
+
+## Exercise 1
+
+Using the 173 majors listed in fivethirtyeight.com’s College Majors dataset, provide code that identifies the majors that contain either "DATA" or "STATISTICS"
+
+```{r}
+grep(pattern = 'data|science', majors$Major, value = TRUE, ignore.case = TRUE)
+```
+
+## Exercise 2
+
+_Write_ _code_ _that_ _transforms_ _the_ _data_ _below_
+
+[1] "bell pepper"  "bilberry"     "blackberry"   "blood orange"
+[5] "blueberry"    "cantaloupe"   "chili pepper" "cloudberry"  
+[9] "elderberry"   "lime"         "lychee"       "mulberry"    
+[13] "olive"        "salal berry"
+
+_Into_ _a_ _format_ _like_ _this_:
+c("bell pepper", "bilberry", "blackberry", "blood orange", "blueberry", "cantaloupe", "chili pepper", "cloudberry", "elderberry", "lime", "lychee", "mulberry", "olive", "salal berry")
+
+
+```{r}
+food <- list(c("bell pepper","bilberry","blackberry","blood orange", "blueberry","cantaloupe","chili pepper","cloudberry" ,"elderberry","lime","lychee","mulberry","olive","salal berry"))
+```
+
+Created a list and then used the cat and paste function to transform list
+
+```{r}
+cat(paste(food), collapse = ",")
+```
+
+
+## Exercise 3
+Describe, in words, what these expressions will match:
+
+***(.)\1\1***
+
+What is returned will start with any character and be followed be with \1\1. For ex: 3\1\1, c\1\1
+
+
+***"(.)(.)\\2\\1"***
+
+Will return string any two characters, that follows up with a reversal of two characters. For ex: 1221, 4554, Chhc
+
+
+***(..)\1***
+
+Will return any two sets of character that is then followed by \1. For ex: 
+
+
+***"(.).\\1.\\1"***
+
+Returns strings that have a chracter that repeats in the middle and last part of the string
+
+
+***"(.)(.)(.).*\\3\\2\\1"***
+
+Will return strings where the first 3 characters can be any character and is then reversed in order
+
+## Exercise 4
+
+Construct regular expressions to match words that:
+
+1. Start and end with the same character
+
+```{r}
+exer1 = 'creiucdiu'
+  
+exer_str <- str_extract_all(exer1, "(.).+\\1")
+print(exer_str)
+```
+
+2. Contain a repeated pair of letters (e.g. "church" contains "ch" repeated twice.)
+
+```{r}
+exer2 = 'cacehjhhcadejnk'
+
+exer2_str <- str_extract_all(exer2, "(..).*\\1")
+print(exer2_str)
+```
+
+3. Contain one letter repeated in at least three places (e.g. "eleven" contains three "e"s.)
+
+```{r}
+exer3 = 'banana'
+  
+exer3_str <- str_extract_all(exer3, "(.).*\\1.*\\1")
+print(exer3_str)
+```
