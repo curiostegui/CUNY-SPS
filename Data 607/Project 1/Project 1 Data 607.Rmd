@@ -1,0 +1,145 @@
+---
+title: "Project 1 607"
+author: "Christian Uriostegui"
+date: "2022-09-24"
+output: html_document
+---
+
+## Introduction
+
+Using a data set that contains the results a chess tournament, our job is to create an R Markdown file that generates a .CSV files with the following information for all players:
+
+Player's Name, Player's State, Total Number of Points, Player's Pre-Rating, and Average Pre Chess Rating of Opponents
+
+The following is an example of what the data should look like:
+
+Gary Hua, ON, 6.0, 1794, 1605
+
+## Download library
+
+```{r download package,echo = T, results="hide"}
+library(stringr)
+library(knitr)
+```
+
+## Download Data
+
+```{r load data}
+data <- 'https://raw.githubusercontent.com/curiostegui/CUNY-SPS/main/Data%20607/Project%201/Chess_data.txt'
+
+chess <- read.delim(file=data,skip=1,sep = "|", header = TRUE)
+```
+
+We can see in the data below, that the data set needs extensive cleaning. Our first step is to remove rows of unnecessary data such as the dashed lines seen in row 2 and 5.
+
+```{r}
+head(chess)
+```
+
+## Data Cleaning
+
+I decided to use the seq to extract the rows of information we are interested and split them into two sets. Then I renamed the columns for convenience. I continued my data cleaning by removing columns that have no information of interest.
+
+```{r get the data we are interested in}
+Name <- chess[seq(3,length(chess[,1]),3),]
+
+info <- chess[seq(4,length(chess[,1]),3),]
+```
+
+```{r rename our data}
+names(Name) <- c('Pair','Player.Name','Total','Round.1','Round.2','Round.3','Round.4','Round.5','Round.6','Round.7','X')
+
+names(info) <- c('State','Rating','Total','Round.1_Result','Round.2_Result','Round.3_Result','Round.4_Result','Round.5_Result','Round.6_Result','Round.7_Result','X')
+```
+
+```{r cut the data we are uninterested in}
+Name <- subset(Name, select = -c(X))
+
+info <- subset(info, select = -c(Total,Round.1_Result,Round.2_Result,Round.3_Result,Round.4_Result,Round.5_Result,Round.6_Result,Round.7_Result,X))
+```
+
+## Data Extraction & Additional Cleaning
+
+I extracted each player's pre-rating. There were some null values in the dataset. I was unable to troubleshoot the regular expression syntax to include the values missed. So I decided to locate any NULLs and plug in the missing pre-rating values.
+
+```{r extract rating}
+info$Rating <- as.integer(str_extract(info$Rating,"\\D\\d{3,4}\\D\\W"))
+```
+
+```{r check where NA values are}
+which(is.na(info$Rating))
+```
+
+```{r replace them with values}
+info$Rating[8] <- 1641
+info$Rating[15] <- 1220
+info$Rating[21] <- 1563
+info$Rating[29] <- 1602
+info$Rating[37] <- 980
+info$Rating[39] <- 1436
+info$Rating[41] <- 1403
+info$Rating[46] <- 377
+info$Rating[49] <- 1291
+info$Rating[61] <- 955
+```
+
+I took the same approach when extracting the player IDs in columns Round.1 - Round.7
+
+```{r extract numbers only}
+Name$Round.1 <- as.integer(str_extract(Name$Round.1,"\\d{1,2}"))
+Name$Round.2 <- as.integer(str_extract(Name$Round.2,"\\d{1,2}"))
+Name$Round.3 <- as.integer(str_extract(Name$Round.3,"\\d{1,2}"))
+Name$Round.4 <- as.integer(str_extract(Name$Round.4,"\\d{1,2}"))
+Name$Round.5 <- as.integer(str_extract(Name$Round.5,"\\d{1,2}"))
+Name$Round.6 <- as.integer(str_extract(Name$Round.6,"\\d{1,2}"))
+Name$Round.7 <- as.integer(str_extract(Name$Round.7,"\\d{1,2}"))
+```
+
+## Data Transformation 
+
+After joining the data, I decided to find the average rating of opponent players. First, I substituted the player IDs underneath the Round columns and replaced them with the player's corresponding pre-rating score. Then I calculated the average from columns Round.1-7.
+
+```{r join information}
+Chess_clean <- cbind(Name,info)
+```
+
+
+```{r substitue values in Round columns}
+Chess_clean$Round.1 <- Chess_clean$Rating[Chess_clean$Round.1]
+Chess_clean$Round.2 <- Chess_clean$Rating[Chess_clean$Round.2]
+Chess_clean$Round.3 <- Chess_clean$Rating[Chess_clean$Round.3]
+Chess_clean$Round.4 <- Chess_clean$Rating[Chess_clean$Round.4]
+Chess_clean$Round.5 <- Chess_clean$Rating[Chess_clean$Round.5]
+Chess_clean$Round.6 <- Chess_clean$Rating[Chess_clean$Round.6]
+Chess_clean$Round.7 <- Chess_clean$Rating[Chess_clean$Round.7]
+```
+
+```{r find opponent average rating}
+Chess_clean$Opp_Average <- rowMeans(Chess_clean[,4:10],na.rm=T)
+Chess_clean$Opp_Average <- round(Chess_clean$Opp_Average)
+```
+
+## Results
+
+Lastly, I created the final data frame which has only the columns of interest: Player Name, Player State, Total Points, Player Pre-Rating and Average Opponent Pre-Rating
+
+```{r create final df, format = "markdown"}
+final_df <- data.frame(
+  Player.Name <- Chess_clean$Player.Name,
+  Player.State <- Chess_clean$State,
+  Total.Points <- Chess_clean$Total,
+  Player.PreRating <- Chess_clean$Rating,
+  Opp.Rating.Avg <- Chess_clean$Opp_Average
+)
+
+colnames(final_df) <- c("Player.Name","Player.State","Total.Points","Player.PreRating","Opp.Rating.Avg")
+kable(final_df)
+```
+
+
+## Create CSV File
+
+```{r create csv, eval = FALSE}
+write.csv(final_df, file = "C:\\Users\\urios\\Downloads\\data.csv") 
+```
+
