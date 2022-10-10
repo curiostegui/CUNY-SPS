@@ -7,7 +7,7 @@ output: html_document
 
 ## Task
 
-Using three datasets identified in the discussion board items or your own dataset, create a .CSV file that includes all of the information in the dataset; read the information from your CSV file into R and use tidyr and deplyr as needed to to tidy and transform data; perform analysis, and present conclusions.
+Using three datasets identified in the discussion board items or your own dataset, create a .CSV file that includes all of the information in the dataset; read the information from your CSV file into R and use tidyr and dplyr as needed to to tidy and transform data; perform analysis, and present conclusions.
 
 ## Introduction
 
