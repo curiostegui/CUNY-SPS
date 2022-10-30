@@ -1,0 +1,84 @@
+---
+title: "API"
+author: "Christian Uriostegui"
+date: "2022-10-28"
+output: html_document
+---
+
+# Assignment
+
+The New York Times web site provides a rich set of APIs, as described here: https://developer.nytimes.com/apis
+
+You’ll need to start by signing up for an API key.
+
+Your task is to choose one of the New York Times APIs, construct an interface in R to read in the JSON data, and 
+transform it into an R DataFrame
+
+# Load library
+
+```{r library}
+library(httr)
+library(jsonlite)
+library(tidyr)
+library(dplyr)
+```
+
+# Connect to NYT API
+
+I connected to the NYT Books API using the GET function. 
+
+```{r}
+res = GET("https://api.nytimes.com/svc/books/v3/lists/full-overview.json?api-key=wAWL9GvlAEQXqPqHPdP6g5NKswYDCt26")
+```
+
+I successfully connected based on the 200 status returned.
+
+```{r}
+res
+```
+
+# Transform Data to Dataframe
+
+In this step, I turn the data into a Dataframe.
+
+```{r}
+#  the content here is turned from its raw form into a JSON style format and then turned to dataframe
+data = fromJSON(rawToChar(res$content)) %>%
+  data.frame()
+```
+
+# Further Cleaning
+
+When looking at the dataframe I noticed that in the last column there appears to be a nested dataframe. Some of the more interesting information such as book title and author is in there.
+
+```{r}
+data %>%
+  select(14:17) %>%
+  as_tibble()
+```
+
+## Unnest Data
+
+To access the information under the results.lists.books column, I use the function unnest.
+
+```{r}
+data <- unnest(data, results.lists.books)
+```
+
+```{r}
+head(data)
+```
+
+## Select data of interest
+
+Lastly, I selected the columns of interest such as title and author. If I were to do an analysis, I would work with the columns selected in this new set
+
+```{r}
+data <- data %>%
+  select(c(35,36,40,38,20,26,34,12,5,7,4,13))
+  as_tibble()
+```
+
+```{r}
+data
+```
