@@ -4,6 +4,7 @@ author: "Christian Uriostegui"
 date: "2022-10-28"
 output: html_document
 ---
+Rpubs link: http://rpubs.com/curiostegui93/963961
 
 # Assignment
 
