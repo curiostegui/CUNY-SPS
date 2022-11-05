@@ -1,0 +1,45 @@
+---
+title: "Discussion - Recommender System"
+author: "Christian Uriostegui"
+date: "2022-11-04"
+output: html_document
+---
+
+## Assignment
+
+Your task is to analyze an existing recommender system that you find interesting.  You should: 
+
+- Perform a Scenario Design analysis as described below.  Consider whether it makes sense for your selected recommender system to perform scenario design twice, once for the organization (e.g. Amazon.com) and once for the organization's customers. 
+- Attempt to reverse engineer what you can about the site, from the site interface and any available information that you can find on the Internet or elsewhere.
+- Include specific recommendations about how to improve the site's recommendation capabilities going forward. 
+- Create your report using an R Markdown file, and create a discussion thread with a link to the GitHub repo where your Markdown file notebook resides.  You are not expected to need to write code for this discussion assignment.
+
+#### Organization: 1800 Flowers
+
+1800 Flowers is a website where you can order and deliver flowers, and other stationary gifts. They include personalized options such as notes, and customized gift packages. 
+
+#### Who are your target users?
+
+Customers are interested in looking for quick, convenient and customizable gift options for a loved one.
+
+The organization wants to find customers that are searching for flower and gift delivery services.
+
+#### What are their key goals?
+
+Customers want to find and deliver the ultimate flowers/gift set in timely fashion.
+
+The organization wants to create a seamless and personalized gift buying and delivery experience.
+
+#### How can you help them accomplish their goals
+
+Customers have to post their location, occasion, and delivery date to get the best results
+
+The organization can help customers reach their goals by improving access to local florists to ensure the right arrangements and timely delivery.
+
+#### Reverse engineer
+
+I couldn't find information on how the site interface works. I would imagine the success of the algorithmn relies on the accuracy of being able to locate and contact florists in the area of the customer and being able to successfully schedule an arrangement gift. 
+
+#### Recommendations
+
+I think having expanded range of plants/flowers could expand their demographic to a younger group or one that is more knowledgeable about flowers and has particular tastes. This can be in the form of an extra category for exotic plants or flowers.
