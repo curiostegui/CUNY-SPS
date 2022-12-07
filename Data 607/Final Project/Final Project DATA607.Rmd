@@ -2,7 +2,20 @@
 title: "Final Project"
 author: "Christian Uriostegui"
 date: "2022-12-04"
-output: html_document
+output: 
+  pdf_document: default
+  html_document:
+    includes:
+      in_header: header.html
+    css: ./lab.css
+    highlight: pygments
+    theme: cerulean
+    toc: true
+    toc_float: true
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: 150
 ---
 
 # Objective
@@ -13,11 +26,11 @@ As a fan of the show, I was particularly drawn to the topics that were covered i
 
 In my study, I will be performing sentiment/text analysis on the pilot episode of the Sopranos and see whether the text foreshadows any of the critical themes or events of season 1 and the rest of the show. 
 
-Given that Tony's therapy sessions with Dr. Melfi are a frequent occurence in the beginning of the show and device that moves the plot, I expect to see the foreshadowing of events and conflicts in season 1. I also expect for the dialogue to be higher in negative content than positive because of his health scare in the first episode. 
+Given that Tony's therapy sessions with Dr. Melfi are a frequent occurrence in the beginning of the show and device that moves the plot, I expect to see the foreshadowing of events and conflicts in season 1. 
 
 # Load Library
 
-```{r}
+```{r message=FALSE}
 library(readr)
 library(dplyr)
 library(tidyverse)
@@ -31,8 +44,8 @@ library(tm)
 library(e1071)
 library(wordcloud)
 library(quanteda.textplots)
-library("quanteda.textstats")
-library("SentimentAnalysis")
+library(quanteda.textstats)
+library(SentimentAnalysis)
 ```
 
 # Load Data
@@ -45,9 +58,12 @@ glimpse(sopranos_ep1)
 ```
 
 The dataset show above contains the following columns:
-**Index:**Number of row
-**Character:**The character the line of dialogue is for.
-**Script**Dialogue that is read by the character.
+
+**Index:** Number of row
+
+**Character:** The character the line of dialogue is for.
+
+**Script:** Dialogue that is read by the character.
 
 ```{r}
 # Used the function to see the characters with dialogue in this episode
@@ -95,9 +111,21 @@ corp2 <- corpus(sopranos_ep1, text_field = 'Script')
 corp2
 ```
 
+----------------------------------------------------------------------------------------------------------------------------------------
+
+# Thoughts Before Analysis
+
+I expect that when performing my analysis, I will see words that tie to important thematic elements of the show. In season 1 the audience become aware of Tony's panic attacks. It explore his dissatisfaction with today's world, his father's mob lifestyle, and troubled relationships in his family, in particular with his mother and uncle - another mob boss with whom he has a power struggle with.  
+
+Tony's inability to cope with his depression and pressure as boss of his crew, also affects his children and wife, as he is often absent or too irritable to help with domestic conflicts. I also anticipate seeing lots of associations with family or conflict with family members.
+
+Also, because this episode explores Tony's depression, I expect there to be more negative and positive associations in my analysis.
+
+----------------------------------------------------------------------------------------------------------------------------------------
+
 # Document Term Matrix
 
-In order to generate our visualizations such as wordclouds, we now need to transform `corp1` into a document term matrix. While doing so, I continue to clean the data by making changes such as removing punctuation marks, symbols, and numbers.
+In order to generate our visual insights , we now need to transform `corp1` into a document term matrix. While doing so, I continue to clean the data by making changes such as removing punctuation marks, symbols, and numbers.
 
 ```{r}
 dtm1 <- corp1 %>%
@@ -111,8 +139,8 @@ dtm1
 
 ## Most Frequent Words 
 
-Add notes about observations
-```{r}
+
+```{r warning=FALSE}
 textplot_wordcloud(dtm1, max_words = 50, colors = brewer.pal(8, "Dark2"))
 ```
 
@@ -121,38 +149,55 @@ write observations
 topfeatures(dtm1, 20)
 ```
 
+**Family:** The most frequent word is "uncle", which is not surprising, given their power struggle. Tony is conflicted in the episode because he views Uncle Junior as a father figure who respects, but doesn't feel he gets the same respect in return. Uncle Junior is planning to attack one of Tony's associates to the dismay of Tony. 
+
+We also see the word "junior" which is his uncle's name. Other mentions of his family includes "mother", and "father"
+
+**Ducks:** Another interesting appearance is the word "duck". Tony in the show is attached to animals, particularly a flock of docks that frequently visits his pool but have now dissappeared. Dr. Melfi, suggests the ducks flying away symbolizes the turmoil in his house and the fear of his family leaving him too.  
+
+**Feelings** There are associations with feelings explored in this episode such as "feel", "life", and "home". Since Tony's therapy session is center in the episode, it is not surprising to see these words come up.
+
+
 ## Words in Context
 
-```{r}
-k = kwic(corp2, 'uncle', window = 5)
-head(k, 8)
-```
+To further understand why these words appear frequently, I decide to explore their appearance through the function `kwic` or key words in context.
 
-```{r}
-k1 = kwic(corp2, 'feel*', window = 5)
-head(k1, 8)
+```{r warning=FALSE}
+k = kwic(corp2, 'uncle', window = 5) # I utilize corp2 because it contains the script's full lines
+as_tibble(head(k, 8))
 ```
+The words "uncle" appear in Tony's conversations to Dr. Melfi and his crew regarding his Uncle Junior. It shows the contrast of his feeling towards his uncle. On one side he love him but also mentions that he is a source of his stress on a personal and professional level.
 
-```{r}
+```{r warning=FALSE}
+k1 = kwic(corp2, 'feel*', window = 5) # added * to account multiple variation of feel (for ex: feels and feeling)
+as_tibble(head(k1, 8))
+```
+The word feel appears frequently in the context of Tony's therapy sessions with Dr. Melfi where is expressing his feelings about personal and political topics.
+
+```{r warning=FALSE}
 k2 = kwic(corp2, 'duck*', window = 5)
-head(k2, 8)
+as_tibble(head(k2, 8))
 ```
+Dr. Melfi and Tony Sopranos explores the significance of the ducks that appear in his pool and how they are possibly relation his panic attack.
 
 ## Tony Vs. The Rest
 
-Write observation
-```{r}
-tony_words = docvars(dtm1)$Character == "TONY"
-tony_dtm = dtm1[tony_words,]
-```
+Tony has the most lines in this episode compared to the characters. In this section I will look into the words that Tony specifically uses as well as explore the difference in words used between Tony and the rest of the characters,
 
 ```{r}
+tony_words = docvars(dtm1)$Character == "TONY" # create dtm that only features tony's lines
+tony_dtm = dtm1[tony_words,] # here I merge tony's lines alone and the rest of the script into one dtm
+```
+
+```{r warning=FALSE}
 textplot_wordcloud(tony_dtm, max_words = 50, colors = brewer.pal(8, "Dark2"))
 ```
 
 ```{r}
 topfeatures(tony_dtm, 20)
 ```
+
+We can see a lot of the words that appeared most in the script overall, also make appearances in `tony_words`. We see "uncl", "mother", "feel", "life", "duck", among other words.
 
 ```{r}
 tony_compare <- textstat_keyness(dtm1, tony_words)
@@ -163,9 +208,17 @@ head(tony_compare,20)
 textplot_keyness(tony_compare)
 ```
 
+The textplot_keyness function looks at both what words was most used by Tony compared to those in the show and the opposite end of that as well. We can see that this episode was centered around Tony.
+
+In the target end we see themes visited in the show such as Tony's trouble relationships:  "ma" (his mom), "arti" (artie, a friend), "mother", "wife", etc.
+
+On the reference side we see "toni", "soprano" and "tommi" (typo, it's supposed to say Tony), which of course refer to Tony Soprano himself. Since he is at the center of this episode, his name is brought up frquently in dialogue.
+
 --------------------------------------------------------------
 
 # Sentiment Analysis
+
+For the sentiment analysis, I will be examining how negative words were used compared to positive words in the script. I will be utilizing the DictionaryGI lexicon from the `SentimentAnalysis` package. To look at the totals, I will first clean the dictionary, turn into a dataframe and then merge it with the `clean_sop` dataset where the script is.
 
 ## Load Lexicon
 
@@ -212,29 +265,30 @@ Lex_DictionaryGI <- Lex_DictionaryGI %>%
   na.omit()
 ```
 
-
 ## Merge to Soprano Dataset
 
-```{r}
+```{r message=FALSE}
 sop_sentiment <- clean_sop %>%
   inner_join(Lex_DictionaryGI) 
 ```
 
-### Total Sentiment Words
+----------------------------------------------------------------------------------
+
+## Total Sentiment Words
 
 ```{r}
 table(sop_sentiment$sentiment)
 ```
+As expected we can see the the total number of negative numbers (52%) exceeds those that are positive. However, it is worth noting that in the join between the dictionary and sopranos dataset, that our the number of observations from our dataset shrunk from 2,094 to 354.
 
 ## Top Negative & Positive Words
 
-```{r}
+```{r message=FALSE}
 sop_sentiment_count <- sop_sentiment %>%
-  inner_join(Lex_DictionaryGI) %>%
-  count(word, sentiment, sort = TRUE) %>%
+  inner_join(Lex_DictionaryGI) %>% # join with dictionary
+  count(word, sentiment, sort = TRUE) %>% # count words
   ungroup()
 ```
-
 
 ```{r}
 sop_sentiment_count %>%
@@ -245,12 +299,20 @@ sop_sentiment_count %>%
   ggplot(aes(n, word, fill = sentiment)) +
   geom_col(show.legend = FALSE) +
   facet_wrap(~sentiment, scales = "free_y") +
-  labs(x = "Sentiment Analysis",
+  labs(x = "Sentiment",
        y = NULL)
 ```
 
+Some of the classification is questionable such as "home" being labeled as positive. Home based on how Tony describes it, can be a very stressful place. 
+
+What stands out to me is the words under negative such as "mind", "worry", "stress", "sad", "ruin", "panic","depression", etc. This feels very accurate given that we the viewer are exploring the reason for his panic attack - which caused him to pass out.
 
 # Conclusion
 
+Ultimately, in the pilot episode script we do end up seeing many recurring themes that are explored in this season. We see mentions of conflicts at home, with his mother, uncle and wife; internal disturbance, and feeling this family is falling apart.
+
+Not only does this set up many obstacles for Tony this season, but for the remainder of the show. We will witness an attempt on Tony's life by someone in his family later this season. The discussion about his fear of losing his family foreshadows a separation between Tony and his wife Carmela that happens in the show.
+
+If I had to revisit this study I would choosing a different dictionary. Though the sentiment analysis found that there were more negative words, a lot of the classification wasn't fully accurate. There were a lot of words removed as well when joining the dictionary and the script, which makes the results less reliable.
 
 
