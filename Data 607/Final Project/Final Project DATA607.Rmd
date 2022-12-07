@@ -1,0 +1,256 @@
+---
+title: "Final Project"
+author: "Christian Uriostegui"
+date: "2022-12-04"
+output: html_document
+---
+
+# Objective
+
+The Sopranos is a critically acclaimed tv series that stars fictional mob boss Tony Soprano. The show takes viewers through a look at his internal struggles with balancing his family life and his illegal lifestyle. 
+
+As a fan of the show, I was particularly drawn to the topics that were covered in the series. There was sprinkles of political commentary about the growing xenophobia of that period during the war on terror. Viewers are also privy to Tony and his therapist's conversations about freewill and determinism. It also also questions about morale and whether violent individuals can be redeemed. 
+
+In my study, I will be performing sentiment/text analysis on the pilot episode of the Sopranos and see whether the text foreshadows any of the critical themes or events of season 1 and the rest of the show. 
+
+Given that Tony's therapy sessions with Dr. Melfi are a frequent occurence in the beginning of the show and device that moves the plot, I expect to see the foreshadowing of events and conflicts in season 1. I also expect for the dialogue to be higher in negative content than positive because of his health scare in the first episode. 
+
+# Load Library
+
+```{r}
+library(readr)
+library(dplyr)
+library(tidyverse)
+library(stringr)
+library(knitr)
+library(tidytext)
+library(tidyr)
+library(magrittr)
+library(quanteda)
+library(tm)
+library(e1071)
+library(wordcloud)
+library(quanteda.textplots)
+library("quanteda.textstats")
+library("SentimentAnalysis")
+```
+
+# Load Data
+
+```{r}
+# I will be downloading the pilot script directly from my github
+data <- 'https://raw.githubusercontent.com/curiostegui/CUNY-SPS/main/Data%20607/Final%20Project/Season1-01.csv'
+sopranos_ep1 <- read.csv(file = data, header = TRUE, sep = ",")
+glimpse(sopranos_ep1)
+```
+
+The dataset show above contains the following columns:
+**Index:**Number of row
+**Character:**The character the line of dialogue is for.
+**Script**Dialogue that is read by the character.
+
+```{r}
+# Used the function to see the characters with dialogue in this episode
+unique(sopranos_ep1$Character)
+```
+
+When checking the names of the characters in this script, I observed some typos. In this script, for some reason, Tony's name is spelled as "TOMMY". I also see a typo for lines involving Anthony Jr. His name is listed as "TOMMY JR".
+
+```{r}
+sopranos_ep1$Character <- str_replace(sopranos_ep1$Character,"TOMMY JR","ANTHONY JR")
+sopranos_ep1$Character <- str_replace(sopranos_ep1$Character,"TOMMY","TONY")
+```
+
+# Overview of Character Lines
+
+We can see in our table that Tony, Melfi and Carmela, land in the top 3 in characters with most lines this episode.
+
+```{r}
+sort(desc(table(sopranos_ep1$Character)))
+```
+
+# Data Cleaning
+
+Before examining, we need to tokenize the script by breaking down the lines into a word per column as well as removing stop words.
+
+```{r}
+clean_sop <- sopranos_ep1 %>%
+  unnest_tokens(word, Script) %>% # lines of script are broken down to words
+  mutate(linenumber = row_number()) %>% # added column to count each row
+  select(4,2,3) # removed 'index' column it was no longer be accurate
+```
+
+```{r}
+# Used anti_join to remove stopwords
+clean_sop <- clean_sop %>% 
+  anti_join(stop_words)
+```
+
+# Create Corpus
+
+```{r}
+corp1 <- corpus(clean_sop, text_field = 'word')
+corp1
+corp2 <- corpus(sopranos_ep1, text_field = 'Script')
+corp2
+```
+
+# Document Term Matrix
+
+In order to generate our visualizations such as wordclouds, we now need to transform `corp1` into a document term matrix. While doing so, I continue to clean the data by making changes such as removing punctuation marks, symbols, and numbers.
+
+```{r}
+dtm1 <- corp1 %>%
+  tokens(remove_punct=T, remove_numbers=T, remove_separators=T,remove_symbols=T) %>% # further cleaning performed
+  tokens_tolower() %>% # turned all words to lowercase
+  tokens_remove(stopwords('en')) %>% # removed stopwords again just in case
+  tokens_wordstem() %>% #reduced words to their stem root
+  dfm() # document term matrix creation
+dtm1 
+```
+
+## Most Frequent Words 
+
+Add notes about observations
+```{r}
+textplot_wordcloud(dtm1, max_words = 50, colors = brewer.pal(8, "Dark2"))
+```
+
+write observations
+```{r}
+topfeatures(dtm1, 20)
+```
+
+## Words in Context
+
+```{r}
+k = kwic(corp2, 'uncle', window = 5)
+head(k, 8)
+```
+
+```{r}
+k1 = kwic(corp2, 'feel*', window = 5)
+head(k1, 8)
+```
+
+```{r}
+k2 = kwic(corp2, 'duck*', window = 5)
+head(k2, 8)
+```
+
+## Tony Vs. The Rest
+
+Write observation
+```{r}
+tony_words = docvars(dtm1)$Character == "TONY"
+tony_dtm = dtm1[tony_words,]
+```
+
+```{r}
+textplot_wordcloud(tony_dtm, max_words = 50, colors = brewer.pal(8, "Dark2"))
+```
+
+```{r}
+topfeatures(tony_dtm, 20)
+```
+
+```{r}
+tony_compare <- textstat_keyness(dtm1, tony_words)
+head(tony_compare,20)
+```
+
+```{r}
+textplot_keyness(tony_compare)
+```
+
+--------------------------------------------------------------
+
+# Sentiment Analysis
+
+## Load Lexicon
+
+```{r}
+data(DictionaryGI)
+str(DictionaryGI)
+```
+
+## Cleaning Lexicon Dataframe
+
+To avoid errors when turning the list into a dataframe, I made the lengths of both rows the same.
+
+```{r}
+length(DictionaryGI$positive) <- length(DictionaryGI$negative)
+```
+
+I then turned the list object into a dataframe.
+
+```{r}
+DictionaryGI_df <- as.data.frame(DictionaryGI)
+```
+
+To create our tidy format, I need to join the columns vertically. Before doing so, I seperated the negative and positive columns into their own objects, and added a label that would identify it's sentiment. Lastly, when joining I also made sure to omit Null values that were added when I made the `positive` and `negative` column of equal length.
+
+```{r}
+negative <- DictionaryGI_df$negative
+negative <- as.data.frame(negative)
+negative <- negative %>% 
+  mutate(sentiment = "negative") %>%
+  rename("word"="negative")
+```
+
+```{r}
+positive <- DictionaryGI_df$positive
+positive <- as.data.frame(positive)
+positive <- positive %>% 
+  mutate(sentiment="positive") %>%
+  rename("word"="positive")
+```
+
+```{r join}
+Lex_DictionaryGI <- bind_rows(positive, negative)
+Lex_DictionaryGI <- Lex_DictionaryGI %>%
+  na.omit()
+```
+
+
+## Merge to Soprano Dataset
+
+```{r}
+sop_sentiment <- clean_sop %>%
+  inner_join(Lex_DictionaryGI) 
+```
+
+### Total Sentiment Words
+
+```{r}
+table(sop_sentiment$sentiment)
+```
+
+## Top Negative & Positive Words
+
+```{r}
+sop_sentiment_count <- sop_sentiment %>%
+  inner_join(Lex_DictionaryGI) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+```
+
+
+```{r}
+sop_sentiment_count %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 10) %>% 
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(x = "Sentiment Analysis",
+       y = NULL)
+```
+
+
+# Conclusion
+
+
+
