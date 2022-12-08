@@ -1,0 +1,77 @@
+---
+title: "Assignment 1"
+author: "Christian Uriostegui"
+date: "2022-09-05"
+output: 
+  pdf_document: default
+  html_document:
+    includes:
+      in_header: header.html
+    css: ./lab.css
+    highlight: pygments
+    theme: cerulean
+    toc: true
+    toc_float: true
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: 150
+---
+
+# Introduction
+
+The dataset to be examined contains political contributions from team owners and commissioners in major sports - which include the NFL, NBA, WNBA, NHL, MLB, and NASCAR. Column information includes specifics on the amount contributed and the recipients of these donations.
+
+In my study I will examine how much contributions commissioners make towards political campaigns.
+
+# Load Library
+
+```{r message=FALSE}
+library(dplyr)
+library(tidyverse)
+library(stringr)
+```
+
+# Data upload
+
+```{r}
+data <- 'https://raw.githubusercontent.com/curiostegui/CUNY-SPS/main/Data%20607/Assignment%20-%20%20Loading%20Data%20into%20a%20Data%20Frame/sports-political-donations.csv'
+donation <- read.csv(file = data, header = TRUE, sep = ",")
+head(donation)
+```
+
+# Data Transformation
+
+Using the dplyr package I created a subset of the original donation set, filtering specifically for commissioners. In order to get the total sum of donations, I also have to change the `amount` column into a numeric column.
+
+```{r}
+commissioner <- donation %>%
+  filter(Team == "Commissioner")
+glimpse(commissioner)
+```
+
+```{r}
+commissioner$Amount = as.numeric(gsub("[\\$,]", "",commissioner$Amount))
+```
+
+# Data Exploration
+
+```{r}
+commissioner_total <- commissioner %>%
+  group_by(Owner, League) %>%
+  summarise(Total = sum(Amount)) %>%
+  arrange(desc(Total))
+commissioner_total
+```
+
+```{r}
+ggplot(commissioner_total, aes(x=Owner,y=Total)) +
+       geom_col()
+```
+
+# Conclusion
+
+We can see in the table and our visualization that commissioner Adam Silver, from the NBA, spends the most in polticial contribution with $22400. The next highest spender is Roger Goodell with $21320 in total spending from 2016-2020.
+
+In a future study, I would want to explore how much commissioner spend on contributions relative to other non-commissioner owners.
+
