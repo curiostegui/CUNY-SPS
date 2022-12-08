@@ -1,0 +1,60 @@
+---
+title: "Lab 2"
+author: "Christian Uriostegui"
+date: "2022-12-08"
+output: html_document
+---
+
+# Objective
+
+My objective is to upload a movie survey into a PostgresSQL database, and connect it to R studio.
+
+# Load Library
+
+```{r}
+library(RPostgres)
+library(DBI)
+library(dplyr)
+```
+
+# Establish connection between Postgres and R
+
+Now that I have the neccessary libraries, I connect to my Postgres account by using my credentials.
+
+```{r}
+# Plug in credentials
+cred<-dbConnect(RPostgres::Postgres(), dbname = "postgres", host="localhost", port="5432", user="postgres", password="Kristian7389!")   
+```
+
+Once connected, I then use the function below to ensure I am properly connected and verifying that my tables of interest are there.
+
+```{r}
+dbListTables(cred)
+```
+
+# Create Dataframe
+
+After my object is created, I then transform it into a database while also selecting columns of interest.
+
+```{r}
+df <- dbGetQuery(cred, "SELECT gender,score, movie  FROM survey")
+```
+
+# Look at Review By Gender
+
+```{r}
+df %>%
+  group_by(gender,movie) %>%
+  summarise(average = mean(score)) %>%
+  arrange(desc(average))
+```
+
+We can see that in my survey, the best reviewed movie was Get Out by both male and females.
+
+# Disconnect
+
+Once complete, we can now disconnect from the database.
+
+```{r}
+dbDisconnect(cred)
+```
