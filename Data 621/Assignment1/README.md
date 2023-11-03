@@ -9,7 +9,9 @@ a 162 game season.
   
   Your objective is to build a multiple linear regression model on the training data to predict the number of wins 
 for the team. You can only use the variables given to you (or variables that you derive from the variables 
-provided). Below is a short description of the variables of interest in the data set
+provided). Below is a short description of the variables of interest in the data set:
+
+![](Data 621/Assignment1/Picture/variablesassignment1.png)<!-- -->
 
 ### Deliverables
 
