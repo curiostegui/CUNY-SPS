@@ -1,0 +1,443 @@
+---
+title: "Data 621 Homework 1"
+author: "Critical Thinking Group 3: Vyannna Hill, Jose Rodriguez, and Christian Uriostegui"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+  chunk_output_type: console
+---
+
+```{r, loading data and libraries, message=FALSE, include=FALSE}
+library(tidyverse)
+library(ggpubr)
+library(corrplot)
+library(mice)
+library(NHANES)
+library(naniar)
+library(GGally)
+library(faraway)
+
+training_set<-read_csv("https://raw.githubusercontent.com/Vy4thewin/criticalthinking3/main/moneyball-training-data.csv")
+test_set<-read_csv("https://raw.githubusercontent.com/Vy4thewin/criticalthinking3/main/moneyball-evaluation-data.csv")
+```
+
+## Introduction of the MoneyBall game statistics from 1871 to 2006
+  
+For this analysis a Multiple Linear Regression Model (MLR) will be
+built. The objective is to predict how many games are won, in a given
+season, based on baseball game event metrics. The baseball game events include batting, strikeouts, fielding, and
+pitching. Each variable can have a positive or a negative influence on the number of wins for the season. For more details on variables, see section **1.1, About the Dataset**.
+
+The final report will include the following sections:  
+**1. Data Exploration:** high-level statistical information about the training data set. This includes, but is not limited to variable distributions, correlations, visualizations and completeness of the data. 
+  
+**2. Data Preparation:** describes steps and techniques used to transform the data.  
+  
+**3. Building models:** will report on several models, its accuracy, and steps taken to improve it.
+  
+**4. Model selection:** will outline the best model and why it was chosen among all the different alternatives.
+  
+  
+## 1. Data Exploration  
+For building linear regression models, data exploration is usually the first step. Its a best practice which allows scientists to find discrepancies in the dataset before diving into model building. Moreover, the data quality can be quantified and visualized. The results are then used to formulate the model-building approach.
+  
+  
+### 1.1 About the Dataset  
+  
+The provided dataset contains two files in CSV format. One for training the MLR model, and one for generating predictions.  
+  
+The following variables are found in the dataset:
+  
+Variable Name | Definition | Theoretical Effect
+------------- | ------------- | -------------
+INDEX | Identification Variable (do not use) |  
+TARGET_WINS | Number of wins | Response variable
+TEAM_BATTING_H | Base hits by batters (1B,2B, 3B, HR) | Positive Impact on Wins
+TEAM_BATTING_2B | Doubles by batters (2B) | Positive Impact on Wins
+TEAM_BATTING_3B | Triples by batters (3B) | Positive Impact on Wins
+TEAM_BATTING_HR | Homeruns by batters (4B) | Positive Impact on Wins
+TEAM_BATTING_BB | Walks by batters | Positive Impact on Wins
+TEAM_BATTING_HBP | Batters hit by pitch (get a free base) | Positive Impact on Wins
+TEAM_BATTING_SO | Strikeouts by batters | Negative Impact on Wins
+TEAM_BASERUN_SB | Stolen bases | Positive Impact on Wins
+TEAM_BASERUN_CS | Caught stealing | Negative Impact on Wins
+TEAM_FIELDING_E | Errors | Negative Impact on Wins
+TEAM_FIELDING_DP | Double Plays | Positive Impact on Wins
+TEAM_PITCHING_BB | Walks allowed | Negative Impact on Wins
+TEAM_PITCHING_H | Hits allowed | Negative Impact on Wins
+TEAM_PITCHING_HR | Homeruns allowed | Negative Impact on Wins
+TEAM_PITCHING_SO | Strikeouts by pitchers | Positive Impact on Wins
+
+### 1.2 Descriptive Statistical Analysis 
+
+On average, teams saw 80 wins in a given season. The most prolific season saw a high of 146, whereas the least saw a value of 0. One path of preemptive checks on normality is to view the binomial distribution of the response variable. The distribution for TARGET_WINS, the response variable for this analysis, appears to be normally distributed. It can be inferred that it is a good candidate for a linear regression model. It should be noted there is a slight dip in density distribution around 70 wins. This could reveal an issue with the unprocessed data set.
+  
+  
+```{r, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+require(gridExtra)
+plot1 <- ggplot() + # Boxplot of TARGET_WINS
+  geom_boxplot(aes(y = training_set$TARGET_WINS)) + 
+  scale_x_discrete( ) +
+  labs(title = "Dist. of Game Wins per Season",
+       y = "Number of Wins")
+
+# compute mean TARTGET_WINS
+mean_tw <- training_set %>% 
+  pull(TARGET_WINS) %>% 
+  mean() %>%
+  signif(6)
+
+plot2 <- ggplot( #review distribution of the response variable, see if not bi-modal 
+  data=training_set, aes(x=TARGET_WINS))+
+  geom_density()+
+  labs(y = "Density",
+       x = "Number of Wins")+
+  geom_vline(xintercept=mean_tw, size=1.2, color="red")
+
+
+grid.arrange(plot1, plot2, ncol=2)
+```
+
+  
+### 1.3 Data Wrangling Pre-inspection:
+```{r, checking for nulls}
+summary(training_set)
+```
+  
+#### 1.3.1 Inspecting for null values:  
+  
+While examining the dataset it was found that several variables have a
+large count of NA values. The largest unaccounted amount of values fall
+with batters hit by the pitchers. We do not have insight from the survey
+team to deduce if these NAs reflect no values recorded or a human imputation
+error. This will have to be sorted for the analysis. 
+  
+1. Are there missing values in the dataset?
+```{r, echo=FALSE}
+any_na(training_set)
+```
+  
+2. How many? What is the proportion of missing values?
+```{r, echo=FALSE}
+n_miss(training_set)
+prop_miss(training_set)
+```
+  
+3. Which variables are affected? Which contain the most missing values?
+```{r, echo=FALSE}
+training_set %>% is.na() %>% colSums()
+```
+  
+  
+```{r include=FALSE}
+#See the number of NAs per columns. Noticed Batters hit per pitch has the highest count
+colSums(is.na(training_set))
+
+```
+
+### 1.4 Investigating Relationships
+
+Two possible predictor values were selected to plot against TARGET_WINS. TEAM_BATTING_BB (Walks by Batter), and TEAM_BATTING_HR (Home
+runs by Batter). There is concern for both variables as they do not appear to have a linear relationship with TARGET_WINS. Ultimately, this can be influenced by another variables.??
+
+```{r, checking linear trends, echo=FALSE}
+#Visually checking for a positive linear trend with a singular predictor value
+g<-ggplot(training_set,aes(x=TEAM_BATTING_BB,y=TARGET_WINS))+geom_point()+labs(title = "Teams Wins vs Walks by Batter",x="Walks by Batter",y="# of wins")+theme_classic()
+
+# plotting the wins vs home runs
+g1<-ggplot(training_set,aes(x=TEAM_BATTING_HR,y=TARGET_WINS))+geom_point()+labs(title = "Teams Wins vs Home runs by Batter",x="# of Homeruns",y="# of wins")+theme_classic()
+
+#Viewing multiple graphs with a selected predictor variable and its response (wins)
+ggarrange(g,g1,ncol = 2,nrow = 1)
+
+```
+
+When visualizing correlation strength between target wins and the other predictor variables, we can see that there aren't many significant relationships. The batting variables all have positive correlations with Target Wins. Some of the pitching and fielding variables have negative correlations. A trend we're seeing is that the offense variables, which include batting, lead to more wins while some of the defensive stats can negatively affect wins. When creating our models, it may be worth creating them with this in mind. Some of the standout pairings are listed below.
+
+1. Target Wins & Team Batting Hits
+TARGET_WINS & TEAM_BATTING_H have a moderately positive correlation of 0.39 which suggests that teams with more batting hits have more wins
+
+2. Target Wins & Team Batting Doubles
+TARGET_WINS & TEAM_BATTING_2B have a weak positive relationship with a correlation of 0.29. Teams with more batting doubles will have slightly more wins 
+ 
+3. Target Wins & Team Batting Walks
+TARGET_WINS & TEAM_BATTING_BB have a weak positive correlation of 0.23. Teams with more batting walks have slightly more wins
+
+4. Target Wins & Team Errors
+TARGET_WINS & TEAM_FIELDING_E have a weak negative correlation of 0.18. Teams with more fielding errors will have slightly less wins.
+
+5. Target Wins & Team Pitching H
+TARGET WINS & TEAM_PITCHING_H has a weak negative correlation of -0.11. Teams with more hits allowed will have slightly less wins.
+
+```{r, viewing predictor plots, echo=FALSE, warning=FALSE}
+ggpairs(training_set)
+```
+
+## 2. Data Preparation
+
+From the previous section, there is no indication that NAs reflect zeros in
+the dataset. As such, they will be assumed to be missing values. Missing values can be handled with two common techniques.
+
+The first technique consists of completely removing all data points containing any amount of NAs. In other words, this method filters to rows that are complete. This method includes all the original predictors at the risk of removing more than 90% of the dataset. A reduction from 2276 to 191 data points. This technique is not ideal as the reduced number of observations can negatively influence the model's regression. 
+
+The alternative path consists of utilizing imputation to assign synthetic values. Imputation can take many different forms, but they all accomplish the same goal: to assume a value based on the distribution of the data. For this particular analysis, MICE is used to predict the missing values in the dataset. It involves removing predictors that pass a given threshold of randomness.
+  
+During the data exploration stage, it was found that variables "TEAM_BASERUN_CS" and "TEAM_BATTING_HBP" have the highest count of missing values. This is a strong indication that its NAs are not
+missing at random. It is best to remove these predictors before running
+the MICE model on the data set. After its removal, a model can be trained.
+  
+
+```{r, model w/ deletion, eval=FALSE, include=FALSE}
+#Technique #1: removing rows with any NAs
+#Noticed there are entries with NAs values that cannot be replaced with a formula. These entries will be removed from the training_set to prevent a inaccurate model
+training_set_na_rem <- na.omit(training_set)
+
+#remove the index column as it does not a have effect on the data
+train.c2<-training_set_na_rem %>%
+  select(-c(INDEX))
+
+summary(train.c2)
+```
+  
+### 2.1 Using MICE Imputation
+```{r, imputation, results='hide', message=FALSE, warning=FALSE}
+#Technique #2: Drop predictors HBP and CS and use MICE imputation
+train.c1<-training_set %>%
+  select(-c(INDEX,TEAM_BATTING_HBP,TEAM_BASERUN_CS)) #Filter dataset
+
+train.mice<-complete(mice(train.c1,method = "lasso.norm",seed = 333)) #Using MICE
+
+summary(train.mice)
+```
+
+```{r, correlation plot, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+#Seeing the correlation between non-NA predictors to indicate mutli-collinearity 
+corrplot(cor(train.mice[,2:14]),method = "number",type="lower", tl.srt = .71,number.cex=0.75)
+```
+  
+  
+### 2.2 Calculating New Predictors
+  
+Although the number of observations were significantly reduced, it did open the
+possibility of new predictors. The MLB[^1] and other baseball fanatic
+sites[^2] provides a list of advanced statistics which expands the
+amount of available predictors. The new predictors introduced to the clean
+dataset are Strikeouts to walk ratio "STW Ratio" and Total Bases. Both predictors can be calculated with elementary arithmetic. 
+
+[^1]: <https://www.mlb.com/glossary/advanced-stats>
+
+[^2]: <http://hosted.stats.com/mlb/stats.asp?file=glossary>
+
+\*New Baseball Variables +STW Ratio: The times a pitcher strikeouts over
+the times a batter walks to first base +Total Bases: Number of bases
+gain by batter by hits
+
+```{r, feature engineering, include=FALSE}
+# Found some baseball formulas here to add onto our analysis
+#STW= pitchers strikeouts/ walks by batter
+train.mice<-train.mice %>% mutate(STW_Ratio=TEAM_PITCHING_SO/TEAM_BATTING_BB)
+
+#total bases=[H + 2B + (2 X 3B) + (3 X HR)].
+train.mice<-train.mice%>%mutate(TB=TEAM_BATTING_H+TEAM_BATTING_2B+(2*TEAM_BATTING_3B)+(3*TEAM_BATTING_HR))
+
+#two observations had NAs
+train.mice<-na.omit(train.mice)
+
+#review new columns
+head(train.mice,3)
+```
+
+### 2.3 Scaling the Data
+  
+Scaling the training set before analysis as the new
+variables are not on the same scale. Now, the training set is ready to
+be fitted!
+ 
+```{r, scaling data, echo=FALSE, warning=FALSE}
+#see any possible predictors for skeweness and apply transformations before fitting 
+g1<-ggplot(data=train.mice,aes(x=TEAM_BATTING_H))+geom_density()+theme_classic()
+g2<-ggplot(data=train.mice,aes(x=TEAM_BATTING_2B))+geom_density()+theme_classic()
+g3<-ggplot(data=train.mice,aes(x=TEAM_BATTING_3B))+geom_density()+theme_classic()
+g4<-ggplot(data=train.mice,aes(x=TEAM_BATTING_HR))+geom_density()+theme_classic()
+g5<-ggplot(data=train.mice,aes(x=TEAM_BATTING_BB))+geom_density()+theme_classic()
+g6<-ggplot(data=train.mice,aes(x=TEAM_BATTING_SO))+geom_density()+theme_classic()
+g7<-ggplot(data=train.mice,aes(x=TEAM_BASERUN_SB))+geom_density()+theme_classic()
+g8<-ggplot(data=train.mice,aes(x=TEAM_PITCHING_H))+geom_density()+theme_classic()
+g9<-ggplot(data=train.mice,aes(x=TEAM_PITCHING_HR))+geom_density()+theme_classic()
+g10<-ggplot(data=train.mice,aes(x=TEAM_PITCHING_BB))+geom_density()+theme_classic()
+g11<-ggplot(data=train.mice,aes(x=TEAM_PITCHING_SO))+geom_density()+theme_classic()
+g12<-ggplot(data=train.mice,aes(x=TEAM_FIELDING_E))+geom_density()+theme_classic()
+g13<-ggplot(data=train.mice,aes(x=TEAM_FIELDING_DP))+geom_density()+theme_classic()
+g14<-ggplot(data=train.mice,aes(x=STW_Ratio))+geom_density()+theme_classic()
+g16<-ggplot(data=train.mice,aes(x=TB))+geom_density()+theme_classic()
+ggarrange(g1,g2,g3,g4,g5,g6,g7,g8,g9,g10,g11,g12,g13,g14,g16,ncol = 4,nrow = 4)
+
+#only 2b appears to be normal, let's fixed the variables that are positively skewed with a log10 
+#columns 15,12,8 cannot be transformed as some instances have negative numbers
+train.mice<-train.mice%>%mutate_at(c(2,9,11,13,14),~log10(.))
+
+
+#scale the training set so its easier for the system to process the data in the regression model
+train_set<-data.frame(scale(train.mice))
+```
+
+## 3. Building Models
+  
+Now its time to create three linear models with distinct predictor variable subsets and compare the results.
+  
+### 3.1 Model Fit 1: Full Model
+  
+The first model will be a full model, meaning it will include all predictors against *TARGET_WINS*.
+
+Looking at the coefficient numbers, we notice something odd. Batting
+variables that should theoretically have a positive effect on winning
+like *TEAM_BATTING_H*, *TEAM_BATTING_2B*, *TEAM_BATTING_3B*, and
+*TEAM_BATTING_HR* have a negative coefficient. This means for every
+increase in this stat, it decreases the number of wins. We see
+the inverse for some variables. *TEAM_PITCHING_H* or hits allowed, a
+stat which has a negative impact on wins, has a positive coefficient. We
+suspect this is due to the effect of having all the predictor values
+together.
+
+This model has the most predictive values, contains 12 statistically
+significant variables, and has an R squared value of 0.3816.
+  
+```{r, model 1 training, echo=FALSE}
+#first model using all predictors
+fit1 = lm(TARGET_WINS ~., data = train_set)
+summary(fit1)
+```
+
+When investigating the residual plots, linearity and homoscedasticity is observed (variance is constant). In the Normal Q-Q plot it can be seen that most points adhere to the diagonal line indicating a normal distribution of residuals. In the leverage visual, we can notice a few deviated points in the model.
+
+```{r, model 1 plotting residuals, echo=FALSE}
+par(mfrow=c(2, 2))
+plot(fit1)
+```
+
+```{r, model 1 residuals, eval=FALSE, include=FALSE}
+plot(fitted(fit1),residuals(fit1),xlab="Fitted",ylab="Residuals")
+abline(h=0)
+```
+
+
+```{r, model 1 checking for outliers, eval=FALSE, include=FALSE}
+#Removing the largest outlier point we have a very similar R squared.
+cook <- cooks.distance(fit1)
+halfnorm(cook,2, ylab="Cook’s distances")
+#first model using all predictors
+fit1i = lm(TARGET_WINS ~., data = train_set, subset=(cook < max(cook)))
+summary(fit1i)
+```
+
+  
+### 3.2 Model Fit 2: Modeling Batting Variables
+
+The second model will only contain batting variables such as
+*TEAM_BATTING_H* and *TEAM_BATTING_2B* (offense variables). Batting variables involve scoring points for a team, therefore increasing the chances of a team winning. Theoretically, these should be strong predictors.
+  
+Unlike the first model where some of the batting variables had negative
+coefficients, most of them are positive here - which which aligns with what is theoretically expected.
+  
+This model contains less predictor variables when compared to model 1, however it is comprised
+mainly of statistically significant variables. A lower R squared value is observed, meaning that fielding and pitching explains a large portion of variance.
+
+```{r, model 2 training, include=FALSE}
+#second model with just batting variables
+fit2 <- lm(TARGET_WINS ~ TEAM_BATTING_H + TEAM_BATTING_2B + TEAM_BATTING_3B + TEAM_BATTING_HR + TEAM_BATTING_BB + TEAM_BATTING_SO, data = train_set)
+summary(fit2)
+```
+
+Though this model meets linearity and homoscedasticity, the first model appears to be more linear. In the QQ plot, the residual points mostly fall on the diagonal line, with both tails slightly deviating away from it. We can observe a few outlier points which
+
+```{r, model 2 residuals, echo=FALSE}
+par(mfrow=c(2, 2))
+plot(fit2)
+```
+
+### 3.3 Model Fit 3: Modeling Pitching and Fielding Variables
+
+The third model will only contain pitching and fielding stats (defensive variables). Outside
+of batting offense, pitching is important because it can limit the
+scoring of the opposing team. Similarly, the less Fielding Errors -
+which can give up scoring opportunities - the higher chances of winning.
+Fielding Double Plays - which is the ability to achieve two outs in a
+defensive play - can also increase the chances of a win. This model can
+also potentially give us a high winning percentage.
+
+```{r, model 3 training}
+#third model with pitching and fielding variables
+fit3 <- lm(TARGET_WINS ~ TEAM_PITCHING_H + TEAM_PITCHING_HR + TEAM_PITCHING_BB + TEAM_PITCHING_SO + TEAM_FIELDING_E + TEAM_FIELDING_DP, data = train_set)
+summary(fit3)
+```
+
+This model does not appear linear based on the vertical shape of the data points, it is homoscedastic. Though the model is normally distributed, compared to the previous models, it has the most points that fall off the line on both ends of the tail. This model appears to be the weakest model of the three.
+
+```{r, model 3 residuals}
+par(mfrow=c(2, 2))
+plot(fit3)
+```
+
+
+The variables *TEAM_PITCHING_H*, *TEAM_PITCHING_HR*, *TEAM_PITCHING_BB*
+have positive coefficients which makes sense given that they have a
+positive effect on wins. *TEAM_FIELDING_E* and *TEAM_PITCHING_SO* are
+detrimental to a game and so their coefficient is negative. It's odd
+that *TEAM_FIELDING_DP* is negative because they are a positive
+occurrence in a game.
+
+This model is comprised mostly of statistically variables, but has the
+lowest R squared compared to the other models.
+
+## 4. Model Selection
+  
+The model of choice will be model 1. Based on the findings, it is evident that both offense and defense variable together explain the variance best. However, it should be noted that model 1 has 16 predictors. It would be a good idea to experiment using a subset of variables, perhaps by using a 'stepwise' or 'regsubsets' algorithm from the leaps library. Furthermore, it should be noted that R squared always increases with the addition of more predictors, therefore its best to abide by the Adjusted R squared instead.
+
+Next, residuals were inspected to check model conformance. For model 1 and 2 there residuals seem to be normally distributed and display constant variance. However, model 3 display made it very poor candidate in terms of residual diagnostics and Adjusted R squared score. 
+
+Furthermore, it would be a good idea to explore removing TEAM_BATTING_HR as it has a high correlation to TEAM_BATTING_SO and TEAM_PITCHING_HR.
+  
+Predictions on test_set:
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#data cleanup
+test.c1 <-test_set %>%
+  select(-c(INDEX,TEAM_BATTING_HBP,TEAM_BASERUN_CS)) #Filter dataset
+
+test.mice<-complete(mice(test.c1,method = "lasso.norm",seed = 333)) #Using MICE
+
+test.mice<-test.mice %>%
+  mutate(STW_Ratio=TEAM_PITCHING_SO/TEAM_BATTING_BB)
+
+#total bases=[H + 2B + (2 X 3B) + (3 X HR)].
+test.mice<-test.mice%>%
+  mutate(TB=TEAM_BATTING_H+TEAM_BATTING_2B+(2*TEAM_BATTING_3B)+(3*TEAM_BATTING_HR))
+
+#X observations had NAs
+test.mice<-na.omit(test.mice)
+ 
+test.mice<-test.mice%>%
+  mutate_at(c(1,8,10,12,13),~log10(.))
+
+test_set<-data.frame(scale(test.mice))
+
+#predict
+s.pred <- predict(fit1,new=test_set)
+
+# backtransform scale:
+(pred <- s.pred * sd(train.mice$TARGET_WINS) + mean(train.mice$TARGET_WINS))
+```
+
+
+## Appendix
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
