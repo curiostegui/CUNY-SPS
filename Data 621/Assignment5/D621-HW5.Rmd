@@ -1,0 +1,571 @@
+---
+title: "Data 621 Homework 5"
+author: "Critical Thinking Group 3: Vyannna Hill, Jose Rodriguez, and Christian Uriostegui"
+date: "2023-12-09"
+output: pdf_document
+---
+
+
+```{r include=FALSE}
+library(tidyverse)
+library(MASS)
+library(ggpubr)
+library(caret)
+library(AER)
+library(GGally)
+library(pscl)
+library(ggpubr)
+library(mice)
+library(corrplot)
+training_set<-read.csv("https://raw.githubusercontent.com/Vy4thewin/criticalthinking3/main/wine-training-data.csv")
+testing_set<-read.csv("https://raw.githubusercontent.com/Vy4thewin/criticalthinking3/main/wine-evaluation-data.csv")
+```
+
+
+### Data Exploration
+
+For wine evaluation, the team will review the data set for predicting the number of cases sold. The team included the lsit of features below for review.
+
+Variable Name| Definition| Value
+-------------|-----------|------|
+TARGET |Number of Cases Purchased| Response
+AcidIndex| testing total acidity of wine by its weighted average| Predictor
+Alcohol| Alcohol Content| Predictor
+Chlorides |Chloride content of wine| Predictor
+CitricAcid| Citric Acid Content| Predictor
+Density| Density of Wine| Predictor
+FixedAcidity| Fixed Acidity of Wine| Predictor
+FreeSulfurDioxide| Sulfur Dioxide content of wine| Predictor
+LabelAppeal| sentiment rating of the label| Predictor
+STARS Wine |rating by a team of experts| Predictor
+Sulphates |Sulfate conten of wine| Predictor
+TotalSulfurDioxide |Total Sulfur Dioxide of Wine| Predictor
+VolatileAcidity |Volatile Acid content of wine| Predictor
+pH| pH of wine| Predictor
+
+From the predictor table, there are a few features that stand out. The features Label Appeal, STARS Wine, alcohol, and pH coefficients may have significance in the model as those items are most talk about in wine reviews. The team can keep those features in mind in the model building process later on.
+
+The training data set has 12,795 observed wines and their ratings. From the summary, the team noticed that the features residualsugar, chlorides, freesulfurdioxide, totalsulfurdioxiode, pH, sulphates, alcohol, and STARS have NA values. We suspect that these features are new to the evaluation process of wine sales. The largest NAs come from STARS, which could have a big influence in the regression models.
+
+The team will need to impute for the missing values later on in the preparation process.
+
+```{r echo=FALSE}
+#summary statistics
+summary(training_set)
+colSums(is.na(training_set))
+```
+
+
+#### Predictor variables distributions
+
+Looking at the plots below, the team noticed that majority of features follow a near normal distribution. The only feature with a slight skewness is AcidIndex, which could benefit from a log transformation!
+
+
+```{r echo=FALSE}
+#reviewing the distributions of the predictors
+g1<-ggplot(aes(x=FixedAcidity),data=training_set)+geom_histogram()+theme_light()
+g2<-ggplot(aes(x=VolatileAcidity),data=training_set)+geom_histogram()+theme_light()
+g3<-ggplot(aes(x=CitricAcid),data=training_set)+geom_histogram()+theme_light()
+g4<-ggplot(aes(x=ResidualSugar),data=training_set)+geom_histogram()+theme_light()
+g5<-ggplot(aes(x=Chlorides),data=training_set)+geom_histogram()+theme_light()
+g5<-ggplot(aes(x=FreeSulfurDioxide),data=training_set)+geom_histogram()+theme_light()
+g6<-ggplot(aes(x=TotalSulfurDioxide),data=training_set)+geom_histogram()+theme_light()
+g7<-ggplot(aes(x=Density),data=training_set)+geom_histogram()+theme_light()
+g7<-ggplot(aes(x=pH),data=training_set)+geom_histogram()+theme_light()
+g8<-ggplot(aes(x=Sulphates),data=training_set)+geom_histogram()+theme_light()
+g9<-ggplot(aes(x=Alcohol),data=training_set)+geom_histogram()+theme_light()
+g10<-ggplot(aes(x=LabelAppeal),data=training_set)+geom_histogram()+theme_light()
+g11<-ggplot(aes(x=AcidIndex),data=training_set)+geom_histogram()+theme_light()
+g12<-ggplot(aes(x=STARS),data=training_set)+geom_histogram()+theme_light()
+plt<-ggarrange(g1,g2,g3,g4,g5,g6,g7,g8,g9,g10,g11,g12,ncol = 4,nrow = 3)
+annotate_figure(plt,top = text_grob("Predictor Variables distribution",size=9))
+
+```
+
+
+```{r echo=FALSE}
+### Interaction of selected features and the response
+g1<-training_set%>%ggplot(aes(x=LabelAppeal,y=TARGET))+geom_point()+theme_light()
+g2<-training_set%>%ggplot(aes(x=STARS,y=TARGET))+geom_point()+theme_light()
+ggarrange(g1,g2,ncol=2)
+```
+
+
+#### Response distribution and Dispersion
+
+For the model building process, there is a assumption for Poisson regression that the response features do not included a majority of zeros. Checking for this assumption, the team noticed that the target response have a large share of zero values in the data set. We can assume that the data set is zero-inflated from this check. This can mean the Poisson regression model's fit will not be closest fit.
+
+When checking the variance and mean of the response, we did see that the variance is a bit more than the mean of the response. This could mean the models could have over-dispersion, but a formal test will be used in this theory.
+
+```{r echo=FALSE}
+#review distribution of response
+#too many zeros-> zero inflated
+training_set%>%ggplot(aes(x=TARGET))+geom_histogram(bins=15)+theme_light()+labs(title="Count of # wine cases sold",x="Number of Wine Cases sold")
+
+#table view of response counts
+training_set%>%group_by(TARGET)%>%summarise(total=n())%>%mutate(freq=total/sum(total))
+
+
+#check for over-dispersion. Var>Mean~ possible over-dispersion
+var(training_set$TARGET)
+mean(training_set$TARGET)
+```
+
+### Data Preparation 
+
+From the exploration, the only major issue of the data set is the missing values. As removal will reduce the model's performance, the team decided imputation is the best route.
+
+#### Imputation via MICE
+
+The team imputed the missing values with MICE. The mice package will predict the missing value of the observation based on random complete cases in the data set.
+
+```{r echo=FALSE}
+#Impute via mice with lasso norm
+train.clean<-complete(mice(training_set,method = "pmm",seed = 333)) 
+train.clean<-train.clean%>%dplyr::select(-c("INDEX"))
+```
+
+
+```{r echo=FALSE, message=FALSE}
+#reviewing the distributions of the predictors after mice
+g1<-ggplot(aes(x=FixedAcidity),data=train.clean)+geom_histogram()+theme_light()
+g2<-ggplot(aes(x=VolatileAcidity),data=train.clean)+geom_histogram()+theme_light()
+g3<-ggplot(aes(x=CitricAcid),data=train.clean)+geom_histogram()+theme_light()
+g4<-ggplot(aes(x=ResidualSugar),data=train.clean)+geom_histogram()+theme_light()
+g5<-ggplot(aes(x=Chlorides),data=train.clean)+geom_histogram()+theme_light()
+g5<-ggplot(aes(x=FreeSulfurDioxide),data=train.clean)+geom_histogram()+theme_light()
+g6<-ggplot(aes(x=TotalSulfurDioxide),data=train.clean)+geom_histogram()+theme_light()
+g7<-ggplot(aes(x=Density),data=train.clean)+geom_histogram()+theme_light()
+g7<-ggplot(aes(x=pH),data=train.clean)+geom_histogram()+theme_light()
+g8<-ggplot(aes(x=Sulphates),data=train.clean)+geom_histogram()+theme_light()
+g9<-ggplot(aes(x=Alcohol),data=train.clean)+geom_histogram()+theme_light()
+g10<-ggplot(aes(x=LabelAppeal),data=train.clean)+geom_histogram()+theme_light()
+g11<-ggplot(aes(x=AcidIndex),data=train.clean)+geom_histogram()+theme_light()
+g12<-ggplot(aes(x=STARS),data=train.clean)+geom_histogram()+theme_light()
+plt<-ggarrange(g1,g2,g3,g4,g5,g6,g7,g8,g9,g10,g11,g12,ncol = 4,nrow = 3)
+annotate_figure(plt,top = text_grob("After MICE:Predictor Variables distribution",size=9))
+
+```
+
+
+#### Feature Correlation
+
+The team reviewed correlation between features for any high correlation! There is no high correlation between the features.
+
+```{r echo=FALSE}
+#ggpairs(train.clean%>%dplyr::select(-c(TARGET)))+theme_light()
+corrplot(cor(train.clean[,2:15]),method = "number",type="lower", tl.srt = .71,number.cex=0.75)
+
+```
+
+
+
+
+### Build Models
+
+From the previous parts, the team is aware of that the response distribution has many zeros in the data set. This can influence how the Poisson regression models fit against the data set. After the review of models of poisson and negative binomial regressions, the team will also fit the training for the zero-inflated data set.
+
+#### Poisson Model 1
+
+For Poisson model one, the team included all features from the data set in the formula. The summary shows multiple features with coefficients that are statistically significant. Volatile Acidity, Chlorides, FreeSulfurDioxide, totalsulfurdioxide, ph, sulphates, labelAppeal, acidIndex, and stars are statistical significant features.
+
+
+From earlier, the team appear correct in its assumptions on Label Appeal, STARS, and pH. Looking at its coefficients, labelappeal has a positive coefficient of (1.43e-01). This means the wine sees a additive effect of 1.43 on its cases sold by its label appeal. The additive effect appears in the alcohol as cases of wine increase its sales by (6.36e-01) if the alcohol percentage is higher.
+
+Calling back to the influx of zero counts, let's check on the model's dispersion. The dispersion is 0.89, which was expected with the high zero count. However, the dispersion is not greater than one and p-value is greater than 0.05 so the model is technically dispersed. The team can see if model two's dispersion score lessens with a optimal subset of features, but it is not guaranteed.
+
+**Diagnostics Plot:**  
+Using the DHARMa library to plot residuals it further confirmed that there is a dispersion issue. The dispersion problem is evident in the deviation from uniformity in the qq-plot. The plot of Residuals Vs predicted show accumulation in the .25 quantile further confirming zero-inflation.
+
+```{r echo=FALSE}
+pfit1<-glm(TARGET~.,data=train.clean,family="poisson")
+summary(pfit1)
+
+#Dispersion check
+dispersiontest(pfit1)
+```
+
+
+
+```{r PM1-Residuals}
+#Check for dispersion. VAlue of phi
+(phi <- sum(residuals(pfit1, type = "pearson")^2) / pfit1$df.residual) #Model is underdispersed. Try zero-inflated model or Hurdle.
+
+#Goodness of fit test
+1-pchisq(deviance(pfit1),df.residual(pfit1)) #p-value is small indicating evidence of a lack of fit
+
+#check residual plots
+library(DHARMa)
+res.sim <- simulateResiduals(pfit1, n=250)
+plotSimulatedResiduals(res.sim)
+
+#Check zero inflation test
+DHARMa::testZeroInflation(res.sim) #p-value confirms zero-inflation if present in the model
+
+```
+
+
+#### Poisson Model 2
+
+For this model, the team used the subset of the features that found to be statistically significant from the base model. There were a slight improvement to the AIC score from the previous iteration. There weren't any significant changes to the null deviance or the degrees of freedom. The coefficients  saw slight changes in its p values with the feature subset.
+
+Poisson model two saw a slight reduction in its dispersion score, but poisson regression may not be the best fit for the model
+
+**Diagnostics Plot:**    
+As expected, the diagnostic plots and zero-inflation conclusion is almost identical to the Poisson Model 1.
+```{r echo=FALSE}
+#subset of statistically significant features 
+pfit2<-glm(TARGET~ STARS+ LabelAppeal  + pH +TotalSulfurDioxide +  FreeSulfurDioxide+ Sulphates + Chlorides + AcidIndex + VolatileAcidity,data=train.clean,family = "poisson")
+summary(pfit2)
+
+#dispersion check
+dispersiontest(pfit2)
+
+```
+
+```{r PM2-Residuals}
+#Check for dispersion. VAlue of phi
+(phi <- sum(residuals(pfit2, type = "pearson")^2) / pfit2$df.residual) #Model is underdispersed. Try zero-inflated model or Hurdle.
+
+#Goodness of fit test
+1-pchisq(deviance(pfit2),df.residual(pfit2)) #p-value is small indicating evidence of a lack of fit
+
+#check residual plots
+res.sim2 <- simulateResiduals(pfit2, n=250)
+plotSimulatedResiduals(res.sim2)
+
+#Check zero inflation test
+DHARMa::testZeroInflation(res.sim2) #low p-value confirms zero-inflation if present in the model
+
+```
+
+
+
+#### Negative Binomial Model 1
+
+Bouncing from the poisson models, negative binomial regression has a slight advantage. Negative binomial regression supposedly can handle count models with over-dispersion with correction based on the parameter. Although the previous poisson models were not statistically proven with over-dispersion, let's see if the built in correction helps the model fit.
+
+For Negative Binomial Model one, let's use the optimal subset from poisson model two for features.
+From this run, there wasn't much of a change in the null deviance compared to poisson model two's results. The coefficients and the p-values are almost the same compared. When observing the likelihood score, the figure is very large. This points to the model not having the best fit with the data set provided as the dataset is suspected zero-inflated.
+
+
+Checking on dispersion, the model is not over dispersed as the p-value does not break the null hypothesis.  
+
+**Diagnostics Plot:**  
+Like the Poisson models, the negative binomial models display deviation from the qq-plot. The zero-inflation test also confirms model fit inadequacy due to zero inflation.
+```{r echo=FALSE}
+nbfit1<-glm.nb(TARGET~ log(STARS)+ LabelAppeal  + pH +TotalSulfurDioxide +  FreeSulfurDioxide+ Sulphates + Chlorides + AcidIndex + VolatileAcidity,data=train.clean)
+summary(nbfit1)
+
+#dispersion check
+odTest(nbfit1)
+```
+```{r NB1-Residuals}
+#check residual plots
+res.sim3 <- simulateResiduals(nbfit1, n=250)
+plotSimulatedResiduals(res.sim3)
+
+#Check zero inflation test
+DHARMa::testZeroInflation(res.sim3) #p-value confirms zero-inflation if present in the model
+
+```
+
+
+
+#### Negative Binomial Model 2
+
+Building off the last model, the team could see if the features STARS and AcidIndex have a effect on the deviance. From the distribution plots, those features distribution are slightly right-skewed. This model will use the same subset of features but log transform STARS and AcidIndex. This change lowered the null deviance by 496 pts. This improvement in the model caused the STARS's coefficient to increased to (7.36e-01), which points out the feature has a stronger influence in more wine cases sold like the wine's sulfur dioxide content.
+
+
+```{r echo=FALSE}
+nbfit2<-glm.nb(TARGET ~ log(STARS) + LabelAppeal + pH + TotalSulfurDioxide +FreeSulfurDioxide + Sulphates + Chlorides + log(AcidIndex) + VolatileAcidity,data=train.clean)
+summary(nbfit2)
+
+#dispersion check
+odTest(nbfit2)
+```
+
+```{r NB2-Residuals, eval=FALSE, include=FALSE}
+#check residual plots
+res.sim4 <- simulateResiduals(nbfit2, n=250)
+plotSimulatedResiduals(res.sim4)
+
+#Check zero inflation test
+DHARMa::testZeroInflation(res.sim4) #p-value confirms zero-inflation if present in the model
+
+```
+
+
+#### Multiple Linear Model 1
+
+The team revisited linear regression with the current optimal subset of features. Surprisingly, the significance change with this regression model. STARS and AcidIndex coefficients also doubled in the this regression model. Although this model's explains 46% of the total variance, it might be in the best interest to re-examine the features any shifts towards significance in the next model.
+
+**Diagnostics Plots**  
+As expected, since we are dealing with count data, the Residuals vs fitted plot displays a pattern for both Multiple Linear Regression models. This is to be expected given that there is zero-inflation in the data. Better models like Poisson, Negative-Binomial or zero-inflated models are a better fit for the data.
+
+```{r echo=FALSE}
+lm1<-lm(TARGET ~ log(STARS) + LabelAppeal + pH + TotalSulfurDioxide +FreeSulfurDioxide + Sulphates + Chlorides + log(AcidIndex) + VolatileAcidity,data=train.clean)
+summary(lm1)
+
+```
+
+```{r ML1-Residuals}
+par(mfrow = c(2, 2))
+plot(lm1)
+
+```
+
+#### Multiple Linear Model 2
+
+
+For linear model 2, the team revisited the full list of features (+ the log transformed STARS & AcidIndex) and used AICstep for the adjusted list of features with the lowest AIC possible. In this feature selection, the AIC is reduced to the lowest score thus far. Alcohol is now a feature that's statistically significant in the model.
+
+```{r echo=FALSE}
+#use stepAIC to achieve lowest AIC in the linear model
+lm2<-lm(TARGET~FixedAcidity+FixedAcidity+VolatileAcidity+CitricAcid+ResidualSugar+Chlorides+FreeSulfurDioxide+TotalSulfurDioxide+Density+pH+Sulphates+Alcohol+LabelAppeal+log(AcidIndex)+log(STARS),data=train.clean)
+lm2<-lm2%>%stepAIC(direction="both")
+summary(lm2)
+
+```
+
+```{r ML2-Residuals}
+par(mfrow = c(2, 2))
+plot(lm2)
+
+```
+
+#### Bonus| zero-inflated Model
+
+Zero Inflated regression deals with two tasks, which finds the distribution of the non zero distribution and one that's the excess in zeros. For this regression model, the team will use the pscl package for the zero inflated regression function. For the feature selection, let's use the features from negative binomial model 2.
+
+This model achieved the highest log-likelihood out of all the current models. This means the zero-inflated model has the closet fit to the data set. It might be too early for that call.
+
+Let's also make another zero inflated regression model with the linear model's subset of features. This model will be to compare the coefficients that best match the linear model and if these features work better with zero inflation.
+```{r echo=FALSE}
+#using  zeroinfl() with nb's best features
+zerop1<-zeroinfl(TARGET ~ log(STARS) + LabelAppeal + pH + TotalSulfurDioxide +FreeSulfurDioxide + Sulphates + Chlorides + log(AcidIndex) + VolatileAcidity,data=train.clean, dist = "poisson")
+
+summary(zerop1)
+
+#second zero inflated model with lm's best features
+zerop2<-zeroinfl(TARGET ~ VolatileAcidity + CitricAcid + Chlorides + 
+    FreeSulfurDioxide + TotalSulfurDioxide + Density + pH + Sulphates + 
+    Alcohol + LabelAppeal + log(AcidIndex) + log(STARS), data = train.clean, dist = "poisson")
+summary(zerop2)
+
+```
+
+```{r ZI-Residuals}
+
+par(mfrow = c(1,2))
+
+residuals_zip = residuals(zerop1)
+plot(train.clean$TARGET, residuals_zip, xlab = "Observed Counts", ylab = "Residuals", main="zerop1")
+abline(h = 0, col = "red")
+
+residuals_zip = residuals(zerop2)
+plot(train.clean$TARGET, residuals_zip, xlab = "Observed Counts", ylab = "Residuals", main="zerop2")
+abline(h = 0, col = "red")
+
+```
+
+### Select Models
+
+There are a total of eight models for selection. The team will compared the performances of each model and its measure of fitness with the count data. 
+
+For starters, the team can put aside the poisson models from the model comparison as the data set's response counts are zeros. This lessens the amount of models for comparison as the previous performances improved from the initial models.
+
+####Battle of the models
+
+Looking at the first round of stats, the highest likelihood goes to zero inflated model two with a score of -21,048.24 with model one following behind. When it comes to the mc-fadden R^2, the linear model two has the highest R^2 of 0.15. For this round elimination, the negative binomial models can be eliminated from the decision process.
+
+```{r echo=FALSE}
+#pull model statistics from the competing models
+model.stats<-cbind(nbfit1=pR2(nbfit1,method="mcfadden"),nbfit2=pR2(nbfit2,method="mcfadden"),lm1=pR2(lm1,method="mcfadden"),lm2=pR2(lm2,method="mcfadden"),zeroinf1=pR2(zerop1,method="mcfadden"),zeroinf2=pR2(zerop2,method="mcfadden"))%>%t()
+```
+
+
+#### Likelihoods, AICs, and BICs
+
+Zero inflated Model two appears to the the winner in this chart. It holds the highest log likelihood and the lowest AIC and BIC. The team also check that zero inflated model two is statistically different than model one as a safety measure.
+
+```{r echo=FALSE}
+#viewing new stats
+model.stats<-cbind(zeroinfl1=c(logLik(zerop1),AIC(zerop1),BIC(zerop1)),zeroinfl2=c(logLik(zerop2),AIC(zerop2),BIC(zerop2)),lm1=c(logLik(lm1),AIC(lm1),BIC(lm1)),lm2=c(logLik(lm2),AIC(lm2),BIC(lm2)))%>%t()
+
+colnames(model.stats) <- c("Log Likelihood","AIC","BIC")
+
+#checking stats difference between zero infalted models
+lrtest(zerop1,zerop2)
+```
+
+
+#### Predicting the number of cases
+
+Using the winning model; zero inflated model two, let's see some of the predicted wine cases sold!
+
+```{r echo=FALSE}
+#Reflecting transformation done on the train set
+test.clean<-complete(mice(testing_set,method = "pmm",seed = 333)) 
+test.clean<-test.clean%>%mutate(AcidIndex=log(AcidIndex),STARS=log(STARS))
+
+#predicting based on the count version of the zero inflated model
+wine.sold<-predict(zerop2,newdata =test.clean)
+head(wine.sold)
+```
+
+
+### Appendix
+```{r eval=FALSE}
+library(tidyverse)
+library(MASS)
+library(ggpubr)
+library(caret)
+library(AER)
+library(GGally)
+library(pscl)
+library(ggpubr)
+library(mice)
+library(corrplot)
+training_set<-read.csv("https://raw.githubusercontent.com/Vy4thewin/criticalthinking3/main/wine-training-data.csv")
+testing_set<-read.csv("https://raw.githubusercontent.com/Vy4thewin/criticalthinking3/main/wine-evaluation-data.csv")
+
+#summary statistics
+summary(training_set)
+colSums(is.na(training_set))
+
+#reviewing the distributions of the predictors
+g1<-ggplot(aes(x=FixedAcidity),data=training_set)+geom_histogram()+theme_light()
+g2<-ggplot(aes(x=VolatileAcidity),data=training_set)+geom_histogram()+theme_light()
+g3<-ggplot(aes(x=CitricAcid),data=training_set)+geom_histogram()+theme_light()
+g4<-ggplot(aes(x=ResidualSugar),data=training_set)+geom_histogram()+theme_light()
+g5<-ggplot(aes(x=Chlorides),data=training_set)+geom_histogram()+theme_light()
+g5<-ggplot(aes(x=FreeSulfurDioxide),data=training_set)+geom_histogram()+theme_light()
+g6<-ggplot(aes(x=TotalSulfurDioxide),data=training_set)+geom_histogram()+theme_light()
+g7<-ggplot(aes(x=Density),data=training_set)+geom_histogram()+theme_light()
+g7<-ggplot(aes(x=pH),data=training_set)+geom_histogram()+theme_light()
+g8<-ggplot(aes(x=Sulphates),data=training_set)+geom_histogram()+theme_light()
+g9<-ggplot(aes(x=Alcohol),data=training_set)+geom_histogram()+theme_light()
+g10<-ggplot(aes(x=LabelAppeal),data=training_set)+geom_histogram()+theme_light()
+g11<-ggplot(aes(x=AcidIndex),data=training_set)+geom_histogram()+theme_light()
+g12<-ggplot(aes(x=STARS),data=training_set)+geom_histogram()+theme_light()
+plt<-ggarrange(g1,g2,g3,g4,g5,g6,g7,g8,g9,g10,g11,g12,ncol = 4,nrow = 3)
+annotate_figure(plt,top = text_grob("Predictor Variables distribution",size=9))
+
+### Interaction of selected features and the response
+g1<-training_set%>%ggplot(aes(x=LabelAppeal,y=TARGET))+geom_point()+theme_light()
+g2<-training_set%>%ggplot(aes(x=STARS,y=TARGET))+geom_point()+theme_light()
+ggarrange(g1,g2,ncol=2)
+
+#ggpairs(train.clean%>%dplyr::select(-c(TARGET)))+theme_light()
+corrplot(cor(train.clean[,2:15]),method = "number",type="lower", tl.srt = .71,number.cex=0.75
+         
+#review distribution of response
+#too many zeros-> zero inflated
+training_set%>%ggplot(aes(x=TARGET))+geom_histogram(bins=15)+theme_light()+labs(title="Count of # wine cases sold",x="Number of Wine Cases sold")
+
+#table view of response counts
+training_set%>%group_by(TARGET)%>%summarise(total=n())%>%mutate(freq=total/sum(total))
+
+
+#check for over-dispersion. Var>Mean~ possible over-dispersion
+var(training_set$TARGET)
+mean(training_set$TARGET)
+
+#Impute via mice with lasso norm
+train.clean<-complete(mice(training_set,method = "pmm",seed = 333)) 
+train.clean<-train.clean%>%dplyr::select(-c("ï..INDEX"))
+
+#reviewing the distributions of the predictors after mice
+g1<-ggplot(aes(x=FixedAcidity),data=train.clean)+geom_histogram()+theme_light()
+g2<-ggplot(aes(x=VolatileAcidity),data=train.clean)+geom_histogram()+theme_light()
+g3<-ggplot(aes(x=CitricAcid),data=train.clean)+geom_histogram()+theme_light()
+g4<-ggplot(aes(x=ResidualSugar),data=train.clean)+geom_histogram()+theme_light()
+g5<-ggplot(aes(x=Chlorides),data=train.clean)+geom_histogram()+theme_light()
+g5<-ggplot(aes(x=FreeSulfurDioxide),data=train.clean)+geom_histogram()+theme_light()
+g6<-ggplot(aes(x=TotalSulfurDioxide),data=train.clean)+geom_histogram()+theme_light()
+g7<-ggplot(aes(x=Density),data=train.clean)+geom_histogram()+theme_light()
+g7<-ggplot(aes(x=pH),data=train.clean)+geom_histogram()+theme_light()
+g8<-ggplot(aes(x=Sulphates),data=train.clean)+geom_histogram()+theme_light()
+g9<-ggplot(aes(x=Alcohol),data=train.clean)+geom_histogram()+theme_light()
+g10<-ggplot(aes(x=LabelAppeal),data=train.clean)+geom_histogram()+theme_light()
+g11<-ggplot(aes(x=AcidIndex),data=train.clean)+geom_histogram()+theme_light()
+g12<-ggplot(aes(x=STARS),data=train.clean)+geom_histogram()+theme_light()
+plt<-ggarrange(g1,g2,g3,g4,g5,g6,g7,g8,g9,g10,g11,g12,ncol = 4,nrow = 3)
+annotate_figure(plt,top = text_grob("After MICE:Predictor Variables distribution",size=9))
+
+#ggpairs(train.clean%>%dplyr::select(-c(TARGET)))+theme_light()
+corrplot(cor(train.clean[,2:15]),method = "number",type="lower", tl.srt = .71,number.cex=0.75)
+
+pfit1<-glm(TARGET~.,data=train.clean,family="poisson")
+summary(pfit1)
+
+#Dispersion check
+dispersiontest(pfit1)
+
+#subset of statistically significant features 
+pfit2<-glm(TARGET~ STARS+ LabelAppeal  + pH +TotalSulfurDioxide +  FreeSulfurDioxide+ Sulphates + Chlorides + AcidIndex + VolatileAcidity,data=train.clean,family = "poisson")
+summary(pfit2)
+
+#dispersion check
+dispersiontest(pfit2)
+
+nbfit1<-glm.nb(TARGET~ STARS+ LabelAppeal  + pH +TotalSulfurDioxide +  FreeSulfurDioxide+ Sulphates + Chlorides + AcidIndex + VolatileAcidity,data=train.clean)
+summary(nbfit1)
+
+#dispersion check
+odTest(nbfit1)
+
+
+nbfit2<-glm.nb(TARGET ~ log(STARS) + LabelAppeal + pH + TotalSulfurDioxide +FreeSulfurDioxide + Sulphates + Chlorides + log(AcidIndex) + VolatileAcidity,data=train.clean)
+summary(nbfit2)
+
+#dispersion check
+odTest(nbfit2)
+
+lm1<-lm(TARGET ~ log(STARS) + LabelAppeal + pH + TotalSulfurDioxide +FreeSulfurDioxide + Sulphates + Chlorides + log(AcidIndex) + VolatileAcidity,data=train.clean)
+summary(lm1)
+
+#use stepAIC to achieve lowest AIC in the linear model
+lm2<-lm(TARGET~FixedAcidity+FixedAcidity+VolatileAcidity+CitricAcid+ResidualSugar+Chlorides+FreeSulfurDioxide+TotalSulfurDioxide+Density+pH+Sulphates+Alcohol+LabelAppeal+log(AcidIndex)+log(STARS),data=train.clean)
+lm2<-lm2%>%stepAIC(direction="both")
+summary(lm2)
+
+#using  zeroinfl() with nb's best features
+zerop1<-zeroinfl(TARGET ~ log(STARS) + LabelAppeal + pH + TotalSulfurDioxide +FreeSulfurDioxide + Sulphates + Chlorides + log(AcidIndex) + VolatileAcidity,data=train.clean)
+
+summary(zerop1)
+
+#second zero inflated model with lm's best features
+zerop2<-zeroinfl(TARGET ~ VolatileAcidity + CitricAcid + Chlorides + 
+    FreeSulfurDioxide + TotalSulfurDioxide + Density + pH + Sulphates + 
+    Alcohol + LabelAppeal + log(AcidIndex) + log(STARS), data = train.clean)
+summary(zerop2)
+
+#pull model statistics from the competing models
+model.stats<-cbind(nbfit1=pR2(nbfit1,method="mcfadden"),nbfit2=pR2(nbfit2,method="mcfadden"),lm1=pR2(lm1,method="mcfadden"),lm2=pR2(lm2,method="mcfadden"),zeroinf1=pR2(zerop1,method="mcfadden"),zeroinf2=pR2(zerop2,method="mcfadden"))%>%t()
+
+#viewing new stats
+model.stats<-cbind(zeroinfl1=c(logLik(zerop1),AIC(zerop1),BIC(zerop1)),zeroinfl2=c(logLik(zerop2),AIC(zerop2),BIC(zerop2)),lm1=c(logLik(lm1),AIC(lm1),BIC(lm1)),lm2=c(logLik(lm2),AIC(lm2),BIC(lm2)))%>%t()
+
+colnames(model.stats) <- c("Log Likelihood","AIC","BIC")
+
+#checking stats difference between zero infalted models
+lrtest(zerop1,zerop2)
+
+#Reflecting transformation done on the train set
+test.clean<-complete(mice(testing_set,method = "pmm",seed = 333)) 
+test.clean<-test.clean%>%mutate(AcidIndex=log(AcidIndex),STARS=log(STARS))
+
+#predicting based on the count version of the zero inflated model
+wine.sold<-predict(zerop2,newdata =test.clean)
+head(wine.sold)
+
+#Reflecting transformation done on the train set
+test.clean<-complete(mice(testing_set,method = "pmm",seed = 333)) 
+test.clean<-test.clean%>%mutate(AcidIndex=log(AcidIndex),STARS=log(STARS))
+
+#predicting based on the count version of the zero inflated model
+wine.sold<-predict(zerop2,newdata =test.clean)
+head(wine.sold)
+```
