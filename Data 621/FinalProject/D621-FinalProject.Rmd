@@ -1,0 +1,463 @@
+---
+title: "Data 621 Final Project "
+author: "Jose Rodriguez, Vyanna Hill, Christian Uriostegui"
+date: "2023-12-09"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+### Abstract  
+  
+|  For app developers, their app performance in the app store accounts for future funding for new projects. This project reviewed linear regression and its accuracy towards its predictions in an app’s rating in the Google App Store. In the first path of the project, the team reviewed the Google App Store data set for its viability in linear regression as the response feature is continuous and not discrete for count regression. After a review of the data set’s non-normality and model performance, the project’s regression scope expanded toward generalized additive modeling (GAM). 
+
+|  The team created four different GAMs models with various splines on the features. The splines help better fit the highly skewed features of rating count and stars, as the increased knots on the features boosted the R^2 20%+. This exploration of the different types of splines resulted in the third model with the closest fit with an R^2 of 96%, a deviance of 669, and an RSME of 15%. The final model’s performance highlighted a need for smoothing with a non-normal data set with a continuous response.
+
+
+### Keywords 
+| Generalized Additive Model, Linear Prediction, Kernels, Continuous Data, Validation 
+
+
+### Introduction  
+  
+| For app developers, the funding source for the next project depends on the success of their published apps. The app's popularity in continuous active users partially depends on the app store. Consumers review multiple areas of the app's review page than its volume of downloads: whether the app won any awards, the average rating, the download price, etc. Apps with quality ratings receive a bonus with their position in the app store at the highest viewability and attractive banners on their popularity. Data science can inform the project team of their predicted rating in the app store and re-strategize the next project. For this project, the team will assess which regression model best fits app rating predictions.
+
+
+### Literature Review  
+
+| The literature review navigated the features used in the model creation and the types of regressions that will best fit the dataset. For the project, the team will ensure the price of the app, the date of the latest update, categories are features included based on the journals researched below.
+
+
+#### Background on the features  
+  
+| The paid status of the app is one of the features highlighted of great importance. In Lee and Raghu (2014), the team noted that free-to-download app was a statistically significant feature in two of the four generalized linear models. This significance of the free status in their regression model saw a 1.7x increase in the rating in the top performance as their project focused on the sustainability of the top-performing apps in the app store (pg.157). In contrast, free status harms favorability, as Wondwesen (2023) found through an ordinary least squares regression model that free status apps receive a lower rating than paid status apps.  This can be from the app experience between free-to-download apps and the paid version, as free-to-downloads may have simpler features and advertisement might lower the app experience (pg.12).
+
+| Another feature for inclusion in the project's chosen regression model is the last update date. In Lee and Raghu (2014), their regression model highlighted the importance of the last update in their sustainability model as apps were more likely to maintain their position in the top-performing apps list by 2.9x (pg. 159). The last app update was broken down into different subsets by Wu et al. (2021), as different types of updates provided different increases in the app rating. Their research team noticed updates in functionality on the main features of the app and saw an increase in positive reviews (pg.938). Shifting focus onto the algorithms used in the research surrounding app reviews.
+
+
+#### Background on alogrithms  
+  
+| The algorithms used in the research journals were mixed as each team had a different measure of app rating. In We et al (2021), the team uses logistic regression for their review of the app store rating. Their model’s average accuracy in its prediction was 86%; however, their scope was on the sentiment of the reviews rather than the rating. The team Kapoor and Vij (2020) approach their prediction logistically, as they transformed their discrete response to binary. This transformation gave the team insight into features important between a low/high rating rating, but cannot predict the app rating. The only journal that utilized linear regression was Wondwesen (2023), as their team used ordinary least squares regression in rating prediction. The team will keep in mind that the data set provided response variable is continuous, so the options in regression models are limited.
+
+### Methodology 
+  
+| The team created a process for the rating predictions: data pre-processing, exploration, preparation, model building, model selection, experiment and results.For the project's data, the team sourced a scraped pull from the Google App store by Prakash and Koshy (2021) on Kaggle. The data set at first glance need to be processed before the team can explore the data set's statistics.
+
+```{r Load-Libraries, include=FALSE}
+library(tidyverse) #data wrangling
+library(lubridate) #data wrangling - date formatting
+library(MASS) #box-cox function
+library(car)
+library(forecast)
+library(GGally)
+```
+
+```{r Load-Dataset, echo=FALSE}
+data_url <- "https://raw.githubusercontent.com/Vy4thewin/criticalthinking3/main/raw_appstore_data.csv"
+raw.app.data <-read.csv(data_url)
+```
+
+#### Data Preprocessing  
+  
+  
+###### **Data Subset** 
+|  The data was pre-processed using the tidyverse package. First, a column subset was taken which yielded a total of 18 variables: 17 of those being predictors (x) and one target variable (y). The target variable, also known as the response variable, is 'Rating'. 'This column 'Rating' contains the accumulated average score of a given app between 0 and 5 stars.  
+
+Variable Name | Definition
+------------- | -------------
+Ad Supported | Ad support in app
+App ID | Package name
+App Name | Name of the app
+Category | App category (Adventure, Arcade, Social, etc.)
+Content Rating | Maturity level of app
+Currency | App currency
+Developer Email | Email of developer
+Developer ID | Developer ID in Google Playstore
+Developer Website | Developer's Website
+Editor Choice | Whether awarded by Editor's Choice
+Free | Wheter app is free or paid
+In App Purchases | Whether there are in app purchases
+Installs | Approximate install count
+Last Updated | Last update date
+Maximum Installs | Approximate maximum app install count
+Minimum Android | Minimum android OS version supported
+Price | App price
+Privacy Policy | Privacy policy from developer
+Rating | Average rating (0-5)
+Rating Count | Number of times app has been rated by users
+Released | App launch date on Google Playstore
+Size | Size of the application package
+
+###### **Missing data** 
+  
+  
+|  Missing data was handled by removing NA values. Two reasons prompted the omission of missing values: 1) removing missing values only removed about 5% of observations, 2) It is not known if the missing data points are missing completely at random (MCAR), hence imputation could introduce bias to the model.
+
+```{r echo=FALSE}
+#Removed columns that are not fit for a linear regression model. (i.e: observation identifying columns). 'Currency' as there was little variation in value
+
+# BRL   CAD   EUR   GBP   INR   KRW   USD   VND   XXX 
+#     1     1     1     1     2     1 28963     1   582
+
+#Create list of columns with blank values
+blank_val_cols <- c("Released", "Last.Updated", "Minimum.Android")
+
+#Create list of date cols
+date_val_cols <- c("Released", "Last.Updated")
+
+#Create list of columns to convert to factor type
+factor_list <- c("Category", "Content.Rating")
+
+app.data <- raw.app.data |>
+  dplyr::select(-c(App.Name, App.Id, Developer.Id, Developer.Website, Developer.Email, Privacy.Policy, Scraped.Time, Currency)) |>
+  mutate_at(blank_val_cols, ~na_if(., "")) |> #convert blank values to NA to be better handled by na.omit()
+  na.omit()|> #drops 1577 observations (approx. 35 of the original dataset)
+  mutate_at(factor_list, factor) |> #convert cols to factor type
+  mutate(Size = str_replace_all(Size, "[^0-9]","")) |> #remove non digits from 'Size' col
+  mutate(Size = as.numeric(Size)) |>
+  filter(!is.na(Size)) |>
+  mutate(Installs = str_replace_all(Installs, "[^0-9]","")) |> #clean 'Installs' col
+  mutate(Installs = as.numeric(Installs)) |>
+  mutate(across(all_of(date_val_cols), ~mdy(.), .names = "{.col}")) #use lubridate to convert character cols to date format
+```
+  
+
+###### **Distribution of Numeric Variables:**  
+| All numerical variables were found to be highly skewed. Transformations such as box-cox, logarithmic and square-root were explored. However, they did not normalize the data. Consequently, several assumptions are violated: 1) Normality, 2) linearity. Ultimately, this leads to assuming that the data exhibits complex relationships where a Nonparametric Regression could be the best choice. 
+  
+
+```{r Checking Variable Distribution, echo=FALSE, message=FALSE, warning=FALSE, paged.print=TRUE}
+library(ggpubr)
+
+plot.func <- function(data, col){
+  #compute mean for Rating
+  mean_rating <- data |>
+  pull(col) |>
+  mean() |>
+  signif(6)
+  
+  var.dist.plt <- ggplot(
+    data=app.data, aes(x=data[[col]])) +
+    geom_density()+
+    labs(y = "Density", x = data[[col]]) +
+    geom_vline(xintercept=mean_rating, linewidth=1.2, color= "red")
+  
+  return (var.dist.plt)
+}
+
+g1 <- plot.func(app.data, "Rating")
+g2 <-plot.func(app.data, "Rating.Count")
+g3 <- plot.func(app.data, "Installs")
+g4 <- plot.func(app.data, "Minimum.Installs")
+g5 <- plot.func(app.data, "Maximum.Installs")
+g6 <- plot.func(app.data, "Price")
+g7 <- plot.func(app.data, "Size")
+
+plt <- ggarrange(g1,g2,g3,g4,g5,g6,g7,ncol =3, nrow = 3)
+plt
+```
+  
+###### **Checking for Multi-Collinearity:**  
+|'Maximum.Installs' and 'Minimum.Installs' were found to be highly correlated to 'Installs'.
+  
+```{r echo=FALSE, warning=FALSE}
+library(corrplot)
+#checking for highly correlated variables
+numeric.data <- app.data %>%
+  select_if(is.numeric)
+
+
+corrplot(cor(numeric.data),method = "number",type="lower", tl.srt = .71,number.cex=0.75)
+
+
+#Setting a 70/30 split of the app.store
+library(caTools)
+temp<-sample.split(app.data$Rating,SplitRatio =0.7)
+app.store.train<-subset(app.data,sample=TRUE)
+app.store.test<-subset(app.data,sample=FALSE)
+```
+```{r Checking Variable Linearity, echo=FALSE, message=FALSE}
+linearity.plt <- app.data |>
+  select_if(~is.numeric(.)) |>
+  ggpairs()
+
+linearity.plt
+```
+  
+```{r Variable Transformations, eval=FALSE, include=FALSE}
+#Using box-cox transformations (MASS Package)
+lamb.Rating <- boxcox((app.data$Rating+1)~1)
+lamb.Rating.Count <- boxcox((app.data$Rating.Count+1)~1)
+
+
+#retrieving the exact lambda for transformation
+lamb.Rating <- lamb.Rating$x[which.max(lamb.Rating$y)]#0.14
+lamb.Rating.Count <- lamb.Rating.Count$x[which.max(lamb.Rating.Count$y)]#-0.22
+
+
+#app.data <- app.data %>% mutate(Rating = (Rating^lamb.Rating-1/lamb.Rating))
+app.data <- app.data%>%mutate(Rating=log(Rating+1))
+app.data <- app.data%>%mutate(Rating.Count=sqrt(Rating.Count+1))
+
+```
+
+
+
+```{r Response Variable, echo=FALSE}
+# lambda.Rating <- BoxCox.lambda(app.data$Rating)
+# app.data$Rating = BoxCox(app.data$Rating, lambda.Rating)
+# 
+# 
+# #compute mean for Rating
+# mean_rating <- app.data |>
+#   pull(Rating) |>
+#   mean() |>
+#   signif(6)
+# 
+# 
+# var.dist.plt <- ggplot(
+#   data=app.data, aes(x=Rating)) +
+#   geom_density()+
+#   labs(y = "Density", x = "Rating")# +
+#   #geom_vline(xintercept=mean_rating, linewidth=1.2, color= "red")
+# 
+# plot(var.dist.plt)
+```
+
+###### **Categorical Variables:**  
+| Categorical variables can easily be handled by most R modeling functions. As a caveat, some modeling functions require categorical predictors to be of class factor. During the dplyr data wrangling segment, all categorical variables were converted to factor type using a list.
+  
+
+#### Model Building 
+
+##### **Testing GAM Modeling:**  
+
+|  The team decided to shift the focus from linear models towards Generalized Additive Models (GAM), as the previous linear model attempts produced poor results. In the first model below, the R^2 value increase to 30% with 30% of the deviance accounted. This improvement in the results shows GAM may be a better regression model for fitting the data provided.
+
+The team did notice the R^2 increase with a smoothing function on Rating count. Rating count distribution is highly skewed,as many cases are below <10. The smoothing function provided additional support in shifting the best fit around the feature to a better angle.
+
+```{r Testing NonParametric Model, echo=FALSE, warning=FALSE}
+library(mgcv)
+
+gam.mod <- gam(Rating ~  Category + 
+                 s(Rating.Count) #+
+                 #Installs +
+                 #Minimum.Installs +
+                 #Maximum.Installs +
+                 #Free + 
+                 #Price + 
+                 #Size +
+                 #Minimum.Android +
+                 #Released +
+                 #Last.Updated +
+                 #Content.Rating +
+                 #Ad.Supported + 
+                 #In.App.Purchases +
+                 #Editors.Choice
+               , data = app.store.train)
+
+summary(gam.mod)
+par(mfrow = c(2, 2)) 
+plot(gam.mod)
+
+#checking gam stats
+gam.check(gam.mod)
+```
+
+
+##### **Introducing Shrinking and Other Smoothing Techinques:**  
+
+| From the data exploration, the team is aware of the non-linearity of the features in the data set. The current features may not have a linear fit, but its best fit shape can be a polynomial. Using splines, its adjusting the the line with penalties towards mse; which makes the shape more linear. In order to capture the majority of the points in the data set, the best fit line may take the shape of different curves to better fit the response Rating. The team used shrinking smoothed in the features provided as it lessens the penalty.
+
+| For the models below, the team use splines with a mix of basis. In addition, the method REML (Restricted Maximum Likelihood) was applied as the model has random effects in the features .For Model two, the cubic spline is applied for the features Installs and Rating.counts. These additional splines boosted the R^2 of the model to 72% with its deviance at 72%. In the plots below, the splines of rating count have a closer fit onto the feature than the previous iteration. Checking the gam, the model did coverage with the terms provided. However, the p-values of the smoothed items are significant. This means the smoothing knots need to be increased as the number of bases are seeing a pattern in the model's residuals.
+
+| In the third iteration, the team added more bases to the smoothing function. For the feature Installs, the increases bases improved the p-value out of significance. Rating.count p-value still broke the null hypothesis, which points the feature will need more base functions to correct the null. 
+
+```{r}
+#reviewing previous model, apply cubic splines and updating method to reml
+gam1<- gam(Rating ~s(Rating.Count,bs ='cs') +
+                 s(Installs,bs ='cs')+Category+Ad.Supported+In.App.Purchases
+               , data = app.store.train,method = "REML")
+
+summary(gam1)
+par(mfrow = c(2, 2)) 
+plot(gam1)
+
+par(mfrow = c(2, 2)) 
+gam.check(gam1)
+
+
+#Increasing the basis functions in the smoothing items
+gam2<- gam(Rating ~s(Rating.Count,bs="cs",k=100) +
+                 s(Installs,bs="cs",k=15)+Category+Ad.Supported+In.App.Purchases, data = app.store.train,method = "REML")
+summary(gam2)
+gam.check(gam2)
+```
+
+
+The fourth version of the gam model adds the penalty to the model. There was not a big change the results from the previous.
+
+| In the next model, the rating count smoothing was removed and editors choice, content rating, and last updated to the model. Although the R^2 dropped to 52%, the fitted vs actual plot appears more normal. Checking the AIC and a few other metrics, it does appear the fourth model has the advantage than the model with the higher log likelihood and lower deviance.
+
+
+```{r} 
+#Increasing the basis functions in rating count and add extra penalty
+gam3<- gam(Rating ~s(Rating.Count,bs="cs",k=100) +
+                 s(Installs,bs="cs",k=15)+Category+Ad.Supported+In.App.Purchases+Price, data = app.store.train,method = "REML",select=TRUE)
+
+summary(gam3)
+gam.check(gam3)
+
+#remove smoothing on rating count and add in editors choice
+gam4<- gam(Rating ~Rating.Count+s(Installs,bs="cs",k=15)+Category+Ad.Supported+In.App.Purchases+Editors.Choice+Content.Rating+Last.Updated, data = app.store.train,method = "REML")
+#summary(gam4)
+gam.check(gam4)
+
+#check AIC 
+AIC(gam3,gam4)
+
+library(broom)
+
+glance(gam3)
+glance(gam4)
+```
+
+
+##### **Improved model gam 3:**  
+
+| For model 3 we decided to increase the k value from 100 to 150 and 15 to 20 in an effort to see if it improved our metrics. 
+
+We observed improvements in key areas such as the logLik, AIC, and BIC. In addition, there is a lower deviance in the updated gam3 model.
+
+-----------------------------------------------------------------
+
+```{r}
+#Increased k folds to improve metrics
+gam3_update1<- gam(Rating ~s(Rating.Count,bs="cs",k=150) +
+                 s(Installs,bs="cs",k=20)+Category+Ad.Supported+In.App.Purchases+Price, data = app.store.train,method = "REML",select=TRUE)
+
+summary(gam3_update1)
+gam.check(gam3_update1)
+```
+
+
+```{r warning=FALSE}
+glance(gam3)
+glance(gam3_update1)
+gam.check(gam3_update1)
+
+#plot model fit
+par(c(5,5))
+plot.gam(gam3_update1)
+```
+
+To further support our decision making, we performed an anova test to decide which model to select.
+
+| Looking at this side-by-side view, we observe important details. The updated gam3 uses more degrees of freedom (df), as indicated by the decrease in residual degrees of freedom, which indicates more complexity. As noted, the residuals are lower in the updated gam3 model which tell us that the model fits the data better. Lastly, the p-value indicates that the difference between the models is significant. This leads us to select 'gam3_update1' as our preferred model. 
+
+```{r}
+anova_result <- anova(gam3, gam3_update1, test="Chisq")
+print(anova_result)
+```
+
+
+#### Model Selection  
+
+|  To finalize the selection of a model, we combined the summary statistics for easy comparison.
+
+Our updated model 3 performs the best. It has the lowest AIC, BIC and also has the highest Log-Likelihood. It also has the lowest deviance. Given the high performance of model 3, we will use this to perform our predictions.
+
+```{r}
+gam_model_comp <- bind_rows(glance(gam1), glance(gam2), glance(gam3_update1), glance(gam4))
+gam_names1 <- c("gam1","gam2","gam3","gam4")
+gam_model_comp <- cbind(model.build = gam_names1, gam_model_comp)
+gam_model_comp
+```
+
+### Model Results 
+
+|  From the model selection, improved GAM model 3 was selected as the final model. The final model has the highest R^2 of 96%. This high R^2 does support the need of the spline on the variables "Rating.count" and "STARS", as the R^2 provided once the number of knots increased on these features splines. The team wanted to see if these features are of high importance in the model, so the coefficients were reviewed below.
+
+##### **Variable Importance:**  
+
+|  From the final model, the team reviewed the current collection of features and their coefficients in the regression model. Ad.SupportedTRUE, CategoryArcade, CategoryBooks & Reference, and CategoryBusiness were identified as statistically significant in the regression model.
+
+The feature of ad supported is not a surprise as Wondwesen (2023) saw ad supported ads were more likely to have lower rating compared to the paid version in the app store.
+
+```{r echo=FALSE}
+#look at features with significant p-values
+summary.gam(gam3_update1)
+```
+
+#### Predictions of The Final Model  
+
+
+|  In the predictions seen below, the team examined the predicted values of the predictions versus the actual values in the data set. The team noticed that none of the predicted values fall outside the confidence interval.
+
+Looking at the fit of the regression model, the team noticed rating count had a larger confidence interval compared to installs. The spline of rating count shows there's still a large variance with its splines compared to installs. This could signify that rating count may need additional support in its spline creation.
+
+```{r echo=FALSE, warning=FALSE}
+#predicting the ratings with the most updated
+gam_predict<-predict(gam3_update1,newdata = app.store.test,se.fit = TRUE,type="response")
+
+#Take the upper and lower bounds of the confidence interval
+upper<-gam_predict$fit+1.96*gam_predict$se.fit
+lower<-gam_predict$fit-1.96*gam_predict$se.fit
+
+#store results
+test.results<-data.frame(
+    pred<-gam_predict,
+    fit<-gam_predict$fit,
+    upper<-upper,
+    lower<-lower,
+    act<-app.store.test$Rating
+)
+#Show head of the table
+test.results<-test.results%>%rename(pred=fit,upper.bound="upper....upper",lower.bound="lower....lower",actual="act....app.store.test.Rating",fit="fit....gam_predict.fit")
+
+#check that prediction is within the confidence level
+test.results<-test.results%>%
+  mutate(is.conf=if_else(pred>=lower.bound & pred<=upper.bound,0,1 ))
+
+#view count of observation outside confidence level
+table(test.results$is.conf)
+
+# #see model fit
+# test.results%>%ggplot(aes(x=act,y=pred))+geom_ribbon(aes(ymin=lower,ymax=upper,fill="lightblue"))+geom_line()
+par(c(5,5))
+plot.gam(gam3_update1)
+
+#review results of prediction
+as_tibble(head(test.results))
+
+#calculate RSME
+rsme<-sqrt(mean((test.results$pred - test.results$act)^2))
+sprintf("RSME of Model 3 is: %1.3f",rsme)
+```
+
+
+```{r Actual vs Pred Diff Plt, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+#check that prediction is within the confidence level
+test.results <- test.results |>
+  mutate(difference = abs(actual - pred))
+
+ggplot(test.results, aes(x = difference)) +
+  geom_histogram(binwidth = 0.05, fill = "blue", color = "black") +
+  labs(title = "Distribution of Difference Between Actual and Predicted Values", x = "Difference", y = "Count")
+```
+
+### Final Thoughts
+
+|  The results of the data set highlighted the importance of generalized additive model in regression. The regression model better fit the data set as the features do not follow the assumption of normality like linear regression. The winning GAM models provided a regression model with a R^2 of 96%, a RSME of 15%, and a the lowest deviance of 669. The model's current results could be improved through a different method of splines as the summary results do highlight the need of more knots in the spline function.
+
+
+### References
+|  Tafesse, Wondwesen. (2023). The differential effects of developers’ app store strategy on the performance of niche and popular mobile apps. Journal of Marketing Analytics. 11. 1-14. 10.1057/s41270-023-00216-8.1
+|  Lee, Gunwoong & Santanam, Raghu. (2014). Determinants of Mobile Apps' Success: Evidence from the App Store Market. Journal of Management Information Systems. 31. 133-170. 10.2753/MIS0742-1222310206.
+|  Kapoor, Anuj & Vij, Madhu. (2020). How to Boost your App Store Rating? An Empirical Assessment of Ratings for Mobile Banking Apps. Journal of theoretical and applied electronic commerce research. 15. 10.4067/S0718-18762020000100108. 
+|  Wu, Huayao & Deng, Wenjun & Niu, Xintao & Nie, Changhai. (2021). Identifying Key Features from App User Reviews. 922-932. 10.1109/ICSE43902.2021.00088.
+
+### Appendix
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
