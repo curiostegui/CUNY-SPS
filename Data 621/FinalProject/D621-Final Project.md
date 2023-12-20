@@ -73,6 +73,12 @@ All numerical variables were found to be highly skewed. Transformations such as 
 
 ------------------------------------------------------------------------
 
+# **Model Building**
+
+Because our variables weren’t found to be linear or normal, this violates the linearity and normality assumptions for traditional regression models like MLR/GLS/Robost regression. The only regression technique that can be modeled without parametric assumptions is (GAM General Additive Model). Thus, making it our choice when looking at different models.
+
+
+
 ## Key Metrics in Championship Teams
 
 -   **possession** : counted every time a player scores, misses the
