@@ -46,7 +46,30 @@ processed before the team can explore the data set’s statistics
 
 The data was pre-processed using the tidyverse package. First, a column subset was taken which yielded a total of 16 variables: 15 of those being predictors (x) and one target variable (y). We removed App.Name, App.Id, Developer.Id, Developer.Website, Developer.Email, Privacy.Policy, Scraped.Time, Currency from our models. The target variable, also known as the response variable, is 'Rating'. 'This column 'Rating' contains the accumulated average score of a given app between 0 and 5 stars. 
 
-![](Data_621/FinalProject/images/variables.png)<!-- -->
+![](https://github.com/curiostegui/CUNY-SPS/blob/main/Data%20621/FinalProject/images/variables.png)<!-- -->
+
+------------------------------------------------------------------------
+
+## Missing Data
+
+Missing data was handled by removing NA values. Two reasons prompted the omission of missing values: 1) removing missing values only removed about 5% of observations, 2) It is not known if the missing data points are missing completely at random (MCAR), hence imputation could introduce bias to the model.
+
+![](https://github.com/curiostegui/CUNY-SPS/blob/main/Data%20621/FinalProject/images/nulls.png)<!-- -->
+
+------------------------------------------------------------------------
+## Distribution of Numeric Variables
+
+All numerical variables were found to be highly skewed. Transformations such as box-cox, logarithmic and square-root were explored. However, they did not normalize the data. Consequently, several assumptions are violated: 1) Normality, 2) linearity. Ultimately, this leads to assuming that the data exhibits complex relationships where a Nonparametric Regression could be the best choice. 
+
+![](https://github.com/curiostegui/CUNY-SPS/blob/main/Data%20621/FinalProject/images/distributionofnumericvariables.png)<!-- -->
+
+------------------------------------------------------------------------
+
+## Checking for Multi-Colinearity
+
+'Maximum.Installs' and 'Minimum.Installs' were found to be highly correlated to 'Installs'.
+
+![](https://github.com/curiostegui/CUNY-SPS/blob/main/Data%20621/FinalProject/images/multicolinearity.png)<!-- --> 
 
 ------------------------------------------------------------------------
 
