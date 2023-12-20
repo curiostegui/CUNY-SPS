@@ -46,6 +46,8 @@ processed before the team can explore the data set’s statistics
 
 The data was pre-processed using the tidyverse package. First, a column subset was taken which yielded a total of 16 variables: 15 of those being predictors (x) and one target variable (y). We removed App.Name, App.Id, Developer.Id, Developer.Website, Developer.Email, Privacy.Policy, Scraped.Time, Currency from our models. The target variable, also known as the response variable, is 'Rating'. 'This column 'Rating' contains the accumulated average score of a given app between 0 and 5 stars. 
 
+![](Data_621/FinalProject/images/variables.png)<!-- -->
+
 ------------------------------------------------------------------------
 
 ## Key Metrics in Championship Teams
