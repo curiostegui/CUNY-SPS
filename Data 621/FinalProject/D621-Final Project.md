@@ -77,6 +77,11 @@ All numerical variables were found to be highly skewed. Transformations such as 
 
 Because our variables weren’t found to be linear or normal, this violates the linearity and normality assumptions for traditional regression models like MLR/GLS/Robost regression. The only regression technique that can be modeled without parametric assumptions is (GAM General Additive Model). Thus, making it our choice when looking at different models.
 
+------------------------------------------------------------------------
+
+From the data exploration, the team is aware of the non-linearity of the features in the data set. The current features may not have a linear fit, but its best fit shape can be a polynomial. Using splines, its adjusting the the line with penalties towards mse; which makes the shape more linear. In order to capture the majority of the points in the data set, the best fit line may take the shape of different curves to better fit the response 'Rating'. The team used shrinking smoothed in the features provided as it lessens the penalty.
+
+
 
 
 ## Key Metrics in Championship Teams
