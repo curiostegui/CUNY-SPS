@@ -68,21 +68,15 @@ times_ten(10)
 
 Find the errors, debug the program, and then execute to show the output.
 
-[Example]
-
-`def main()`
-
-`      Calories1 = input( "How many calories are in the first food?"`
-
-`      Calories2 = input( "How many calories are in the first food?")`
-
-`      showCalories(calories1, calories2)`
-
-`def showCalories()   `
-
-`   print(“The total calories you ate today”, format(calories1 + calories2,.2f))`
-
-### 
+```
+def main()
+    Calories1 = input( "How many calories are in the first food?"
+    Calories2 = input( "How many calories are in the first food?")
+    showCalories(calories1, calories2)
+    def showCalories()   
+    print(“The total calories you ate today”, format(calories1 + calories2,.2f))
+```
+------------------------------------------------------------------------------------
 
 ### Christian’s Response
 
