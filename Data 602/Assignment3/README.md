@@ -99,6 +99,8 @@ Write a program that uses any loop (while or for) that calculates the total of t
 
 >   1/30 + 2/29 + 3/28 ............. + 30/1
 
+### Christian’s Response
+
 ```
 total = 0
 for i in range(1,31):
@@ -117,6 +119,8 @@ The formula for an area of a triangle is:
 For example, if the base was 5 and the height was 4, the area would be 10.
 
 >   triangle_area(5, 4) \# should print 10
+
+### Christian’s Response
 
 ```
 def area_calc(base,height):
