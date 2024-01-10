@@ -67,7 +67,7 @@ In addition, create…
 -   A method combine() that takes another box as an argument and increases the length and width by the dimensions of the box passed in
 -   A method get_hypot() that finds the length of the diagonal that cuts through the middle
 
-    Instantiate 3 boxes of dimensions 5,10 , 3,4 and 5,10 and assign to variables box1,
+ Instantiate 3 boxes of dimensions 5,10 , 3,4 and 5,10 and assign to variables box1,
 
 -   box2 and box3 respectively
 -   Print dimension info for each using print_dim()
