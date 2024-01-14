@@ -132,5 +132,4 @@ df.groupby(['SUS_SEX','OFF_DESC']).size()
 
 In my exploratory analysis I found information on both the victims and suspects in the dataset. The highest number of reported suspects are within the age of 25-44, black and male. While the highest number of victims are within the age of 25-44, black and female. This is somewhat misleading especially because there are many "UKNOWN" as well as null values. If I were to do a more thorough investigation, I would want to find a way to deal with nulls, subset a smaller group of columns that are of interest, look into the type of crimes being committed and where.
 
-'''
 
