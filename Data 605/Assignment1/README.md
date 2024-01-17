@@ -30,7 +30,7 @@ library(gifski)
 library(gganimate)
 ```
 
-# Create letter CU
+## Create letter CU
 
 ```{r}
 #letter CU
@@ -40,7 +40,7 @@ z=rbind(x,y)
 plot(y~x, xlim=c(-3,3), ylim=c(-3,3), col='grey')
 ```
 
-# Create function that will left multiply
+## Create function that will left multiply
 
 ```{r create function}
 leftMultiply  <- function(x,y){
@@ -49,7 +49,7 @@ leftMultiply  <- function(x,y){
 leftMultiply(matrix(rep(seq(1,3, length.out=3),3), nrow = 3, ncol = 3),diag(3))
 ```
 
-# Shear
+## Shear
 
 ```{r, animation.hook='gifski',interval=0.2,fig.width=4}
 for (i in seq(0,1,length.out=20)) {
@@ -58,7 +58,7 @@ for (i in seq(0,1,length.out=20)) {
 }
 ```
 
-# Scaling
+## Scaling
 
 ```{r, animation.hook='gifski',interval=0.3,fig.width=4}
 for (i in seq(1,4,length.out=20)) {
@@ -67,7 +67,7 @@ for (i in seq(1,4,length.out=20)) {
 }
 ```
 
-# Rotation
+## Rotation
 
 ```{r, animation.hook='gifski',interval=0.3,fig.width=4}
 for (i in seq(0,pi*2,length.out=20)) {
@@ -76,7 +76,7 @@ for (i in seq(0,pi*2,length.out=20)) {
 }
 ```
 
-# Projection
+## Projection
 
 ```{r, animation.hook='gifski',interval=0.3,fig.width=4}
 for (i in seq(0,2*pi,length.out=20)) {
