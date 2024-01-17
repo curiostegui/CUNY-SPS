@@ -85,5 +85,3 @@ for (i in seq(0,2*pi,length.out=20)) {
    plot(z1[2,]~z1[1,], xlim=c(-3,3), ylim=c(-3,3), col='grey')
 } 
 ```
-```
-
